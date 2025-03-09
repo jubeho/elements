@@ -60,6 +60,15 @@ type
     lines*: seq[WsvLine]
     encoding*: WsvEncoding
 
+  WsvRow* = ref object
+    ## like `WsvLine <#WsvLine>`_ but hold the data in values in 'real-string' way
+    values*: seq[string]
+    whitespaces*: seq[int32]
+    comment*: string
+  WsvTable* = ref object
+    rows*: seq[WsvRow]
+    ## To hold Data in 'real-string' way
+
 proc newWsvDocument*(lines: seq[WsvLine] = @[], encoding: WsvEncoding = weUtf8): WsvDocument
 proc newWsvLine*(line: string = ""): WsvLine
 
@@ -67,6 +76,8 @@ proc parseWsvFile*(fp: string): WsvDocument
   ## parses a wsv-format file-content. Calls `parseWsvText proc <#parseWsvText,string>`_
 proc parseWsvText*(txt: string): WsvDocument
   ## parses wsv-formated text
+proc parseWsvContent*(txt: string): WsvTable
+  ## parses wsv-formated text and creates `WsvTable <#WsvTable`_ of it
 proc parseWsvLine*(line: string): WsvLine
   ## parses a line which consist of WsvString's
   ##
@@ -146,6 +157,9 @@ proc parseWsvText*(txt: string): WsvDocument =
       result.lines.add(wsvline)
     inc(linecounter)
 
+proc parseWsvContent*(txt: string): WsvTable =
+  discard
+    
 proc parseLine*(line: string): WsvLine =
   discard
 #   result = WsvLine()
