@@ -97,6 +97,8 @@ proc toString*(wsvstring: WsvString): string
   ##
   ## it is **not** the same as `$ proc <#$,WsvString>`_
   ## look there for an example
+proc toString*(s: string): string
+  ## value is in "real-string-format" but has WsvString-content.
 
 proc toWsvString*(s: string): WsvString
   ## make a string become a `WsvString <#WsvString>`_
@@ -303,7 +305,30 @@ proc toString*(wsvline: WsvLine, separator: string = "\t"): string =
     return "--invalid-whitespace-char--"
 
 proc toString*(wsvstring: WsvString): string =
-  result = $wsvstring
+  return ($wsvstring.toString)
+  # if result == "":
+  #     return "NIL"
+  # if result == wsvDblQuote:
+  #     return ""
+  # if result == wsvHyphenMinus:
+  #   return "-"
+  # var expectSurroundingDblQuotes = false
+  # if result.contains(wsvDblQuote):
+  #   expectSurroundingDblQuotes = true
+  #   result = result.replace(wsvDblQuote, "\"")
+  # if result.contains($hashsign):
+  #   expectSurroundingDblQuotes = true
+  # if result.hasOneOf(whitespaceInts):
+  #   expectSurroundingDblQuotes = true
+  # if expectSurroundingDblQuotes:
+  #   if (result[0] != '"') or (result[^1] != '"'):
+  #     echo "malformed wsv-string, bye..."
+  #     system.quit()
+  #   result = result[1..^2]
+  # result = result.replace(wsvnewline, "\n")
+
+proc toString*(s: string): string =
+  result = s
   if result == "":
       return "NIL"
   if result == wsvDblQuote:
@@ -324,7 +349,7 @@ proc toString*(wsvstring: WsvString): string =
       system.quit()
     result = result[1..^2]
   result = result.replace(wsvnewline, "\n")
-     
+  
 proc toWsvString*(s: string): WsvString =
   if s == "":
     return %wsvDblQuote
