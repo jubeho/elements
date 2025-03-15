@@ -1,4 +1,4 @@
-import std/[tables,strformat,strutils,json]
+import std/[tables,strformat,strutils,json,parsecsv]
 
 type
   NonUniqueKeyException* = object of KeyError
@@ -20,57 +20,10 @@ type
     elements*: OrderedTable[string, Element] # key: element-id
     levels*: seq[seq[string]] # dimension1: level, dimension 2: element-ids
 
-func newElement*(): Element
-func newElement*(id, parent: string): Element
-func newElement*(id, name, parent: string): Element
-func newElement*(id, name, parent: string, childs: seq[string]): Element
-func newElement*(id, name, parent: string, childs: seq[string], keyvals: Table[string, seq[string]]): Element
-func newElement*(id, name, parent: string, keyvals: Table[string, seq[string]]): Element
-func newElementBevy*(): ElementBevy
-func newElementBevy*(elem: Element): ElementBevy
-func newElementBevy*(elements: seq[Element]): ElementBevy
-proc addElement*(eb: ElementBevy, element: Element, checkParent: bool = true)
-proc getElement*(eb: ElementBevy, idx: int): Element
-proc getElementlevel*(eb: ElementBevy, elementid: string): int
-proc getElementlevel*(eb: ElementBevy, element: Element): int
-proc getChildElementidents*(eb: ElementBevy, elementid: string): seq[tuple[id, name: string]]
-proc getChildElementidents*(eb: ElementBevy, node: Element): seq[tuple[id, name: string]]
-proc getSamelevelElementidents*(eb: ElementBevy, elementid: string): seq[tuple[id, name: string]]
-proc getSamelevelElementidents*(eb: ElementBevy, element: Element): seq[tuple[id, name: string]]
-# proc printTree*(eb: ElementBevy, node: Element, indent: string): string
-
-func newElement*(): Element =
-  return Element(
-    keyVals: initTable[string, seq[string]](),
-  )
-
-func newElement*(id, parent: string): Element =
-  return Element(
-    id: id,
-    parent: parent,
-    keyVals: initTable[string, seq[string]](),
-  )
-
-func newElement*(id, name, parent: string): Element =
-  return Element(
-    id: id,
-    name: name,
-    parent: parent,
-    keyVals: initTable[string, seq[string]](),
-  )
-
-func newElement*(id, name, parent: string, childs: seq[string]): Element =
-  return Element(
-    id: id, name: name, parent: parent,
-    childs: childs,
-    keyVals: initTable[string, seq[string]](),
-  )
-
-func newElement*(id, name, parent: string, childs: seq[string], keyvals: Table[string, seq[string]]): Element =
+func newElement*(id, name, parent: string = "",
+                childs: seq[string] = @[],
+                keyvals: Table[string, seq[string]] = initTable[string, seq[string]]()): Element =
   return Element(id: id, name: name, parent: parent, childs: childs, keyVals: keyvals)
-  
-func newElement*(id, name, parent: string, keyvals: Table[string, seq[string]]): Element =
-  return Element(id: id, name: name, parent: parent, keyVals: keyvals)
 
 func newElementBevy*(): ElementBevy =
   return ElementBevy(
@@ -114,9 +67,9 @@ proc addKeyVal*(elem: Element, key, val: string) =
   else:
     elem.keyVals[key] = @[val]
 
-proc getElementlevel*(eb: ElementBevy, elementid: string): int =
-  return eb.getElementlevel(eb.elements[elementid])
-      
+proc getElement*(eb: ElementBevy, idx: int): Element =
+  return eb.elements[eb.elementindex[idx]]
+
 proc getElementlevel*(eb: ElementBevy, element: Element): int =
   let elemparent = element.parent
   if elemparent == "":
@@ -133,17 +86,14 @@ proc getElementlevel*(eb: ElementBevy, element: Element): int =
       foundParent = false
   return level
 
-proc getElement*(eb: ElementBevy, idx: int): Element =
-  return eb.elements[eb.elementindex[idx]]
+proc getElementlevel*(eb: ElementBevy, elementid: string): int =
+  return eb.getElementlevel(eb.elements[elementid])
   
 proc getRootElementidents*(eb: ElementBevy): seq[tuple[id, name: string]] =
   result = @[]
   for elem in eb.elements.values():
     if elem.parent == "":
       result.add((elem.id, elem.name))
-
-proc getSamelevelElementidents*(eb: ElementBevy, elementid: string): seq[tuple[id, name: string]] =
-  return eb.getSamelevelElementidents(eb.elements[elementid])
 
 proc getSamelevelElementidents*(eb: ElementBevy, element: Element): seq[tuple[id, name: string]] =
   result = @[]
@@ -153,6 +103,9 @@ proc getSamelevelElementidents*(eb: ElementBevy, element: Element): seq[tuple[id
     if eb.getElementlevel(elem) == elemlevel:
       result.add((elem.id, elem.name))
 
+proc getSamelevelElementidents*(eb: ElementBevy, elementid: string): seq[tuple[id, name: string]] =
+  return eb.getSamelevelElementidents(eb.elements[elementid])
+
 proc getElementidents*(eb: ElementBevy, level: int): seq[tuple[id, name: string]] =
   result = @[]
   if level < 0:
@@ -161,14 +114,14 @@ proc getElementidents*(eb: ElementBevy, level: int): seq[tuple[id, name: string]
     if eb.getElementlevel(node) == level:
       result.add((node.id, node.name))
       
-proc getChildElementidents*(eb: ElementBevy, elementid: string): seq[tuple[id, name: string]] =
-  return getChildElementidents(eb, eb.elements[elementid])
-  
 proc getChildElementidents*(eb: ElementBevy, node: Element): seq[tuple[id, name: string]] =
   result = @[]
   for elementid in node.childs:
     result.add((elementid, eb.elements[elementid].name))
 
+proc getChildElementidents*(eb: ElementBevy, elementid: string): seq[tuple[id, name: string]] =
+  return getChildElementidents(eb, eb.elements[elementid])
+  
 proc printTree*(eb: ElementBevy, elem: Element, indent: string): string =
   result = indent & elem.name & "\n"
   for child in elem.childs:
@@ -193,3 +146,14 @@ proc validateValues*(eb: ElementBevy, valKey, pattern: string,
       validateValues(elem, valKey, pattern, validateProc)
       )
     
+proc importCsv*(fp: string, sep: char = ',', idCol: int = 0): ElementBevy =
+  var
+    headernameIdx = initTabel[string, int]() 
+  var csv: CsvParser
+  
+  csv.open(fp, sep)
+
+  csv.readHeaderRow()
+  echo csv.row
+  
+  csv.close()
