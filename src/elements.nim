@@ -1,5 +1,8 @@
 import std/[tables,strformat,strutils,json,parsecsv]
 
+const
+  pathseparator = "/"
+
 type
   NonUniqueKeyException* = object of KeyError
   ParentNotFoundException* = object of KeyError
@@ -25,12 +28,18 @@ func newElement*(id, name, parent: string = "",
                 keyvals: Table[string, seq[string]] = initTable[string, seq[string]]()): Element =
   return Element(id: id, name: name, parent: parent, childs: childs, keyVals: keyvals)
 
-func newElementBevy*(): ElementBevy =
-  return ElementBevy(
+func newElementBevy*(makeroot: bool = false): ElementBevy =
+  result = ElementBevy(
     elements: initOrderedTable[string, Element](),
     elementindex: @[],
     levels: @[],
   )
+  if makeroot:
+    var e = newElement("/", "root", "")
+    e.path = "/"
+    e.level = 0
+    result.elements["/"] = e
+    result.elementindex.add("/")
   
 func newElementBevy*(elem: Element): ElementBevy =
   return ElementBevy(
@@ -58,13 +67,17 @@ proc addElement*(eb: ElementBevy, element: Element, checkParent: bool = true) =
   if eb.elements.hasKey(element.id):
     raise newException(NonUniqueKeyException, fmt("Error: element with id '{element.id}' already in node-swarm"))
   else:
+    if element.parent == "":
+      if eb.elements.hasKey("/"):
+        eb.elements["/"].childs.add(element.id)
+      element.path = pathseparator & element.id
+      element.level = 0
+    else:
+      eb.elements[element.parent].childs.add(element.id)
+      element.path = eb.elements[element.parent].path & pathseparator & element.id
+      element.level = eb.elements[element.parent].level + 1
     eb.elements[element.id] = element
     eb.elementindex.add(element.id)
-    if element.parent != "":
-      echo "Element->Parent: ", $element.parent
-      echo "Parent Element Childs: " & $eb.elements[element.parent].childs
-      eb.elements[element.parent].childs.add(element.id)
-      
 
 proc addKeyVal*(elem: Element, key, val: string) =
   if elem.keyVals.hasKey(key):
@@ -127,15 +140,13 @@ proc getChildElementidents*(eb: ElementBevy, node: Element): seq[tuple[id, name:
 proc getChildElementidents*(eb: ElementBevy, elementid: string): seq[tuple[id, name: string]] =
   return getChildElementidents(eb, eb.elements[elementid])
   
-proc printTree*(eb: ElementBevy, elem: Element, indent: string): string =
+proc printTree*(eb: ElementBevy, elem: Element, indent: string, ): string =
   result = fmt("{indent}{elem.name} ({elem.id})\n")
   for child in elem.childs:
-    echo(fmt("child: '{child}'"))
     result.add(printTree(eb, eb.elements[child], indent & "  "))
 
 proc printTree*(eb: ElementBevy, indent: string): string =
-  for elem in eb.elements.values():
-    result.add(printTree(eb, elem, indent))
+  return eb.printTree(eb.elements[eb.elementindex[0]], indent)
 
 proc validateValues*(elem: Element, valKey, pattern: string,
                      validateProc: proc(value, pattern: string): bool,
@@ -158,8 +169,9 @@ proc validateValues*(eb: ElementBevy, valKey, pattern: string,
     
 proc importCsv*(fp: string, sep: char = ',',
                 idCol: int = 0, nameCol: int = -1,
-                parentCol, childCol: int = -1): ElementBevy =
-  result = newElementBevy()
+                parentCol, childCol: int = -1,
+                createOrigin: bool = false): ElementBevy =
+  result = newElementBevy(createOrigin)
   var
     headernameIdx = initTable[string, int]() 
     idxHeadername = initTable[int, string]()
@@ -174,6 +186,7 @@ proc importCsv*(fp: string, sep: char = ',',
   if idCol >= idxHeadername.len():
     raise newException(IndexDefect, "ID col out of range")
   var rowcount = 0
+  echo result.elements.len()
   while csv.readRow():
     let id = csv.row[idCol]
     var
