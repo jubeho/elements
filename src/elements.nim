@@ -60,6 +60,11 @@ proc addElement*(eb: ElementBevy, element: Element, checkParent: bool = true) =
   else:
     eb.elements[element.id] = element
     eb.elementindex.add(element.id)
+    if element.parent != "":
+      echo "Element->Parent: ", $element.parent
+      echo "Parent Element Childs: " & $eb.elements[element.parent].childs
+      eb.elements[element.parent].childs.add(element.id)
+      
 
 proc addKeyVal*(elem: Element, key, val: string) =
   if elem.keyVals.hasKey(key):
@@ -123,9 +128,14 @@ proc getChildElementidents*(eb: ElementBevy, elementid: string): seq[tuple[id, n
   return getChildElementidents(eb, eb.elements[elementid])
   
 proc printTree*(eb: ElementBevy, elem: Element, indent: string): string =
-  result = indent & elem.name & "\n"
+  result = fmt("{indent}{elem.name} ({elem.id})\n")
   for child in elem.childs:
+    echo(fmt("child: '{child}'"))
     result.add(printTree(eb, eb.elements[child], indent & "  "))
+
+proc printTree*(eb: ElementBevy, indent: string): string =
+  for elem in eb.elements.values():
+    result.add(printTree(eb, elem, indent))
 
 proc validateValues*(elem: Element, valKey, pattern: string,
                      validateProc: proc(value, pattern: string): bool,
@@ -146,14 +156,45 @@ proc validateValues*(eb: ElementBevy, valKey, pattern: string,
       validateValues(elem, valKey, pattern, validateProc)
       )
     
-proc importCsv*(fp: string, sep: char = ',', idCol: int = 0): ElementBevy =
+proc importCsv*(fp: string, sep: char = ',',
+                idCol: int = 0, nameCol: int = -1,
+                parentCol, childCol: int = -1): ElementBevy =
+  result = newElementBevy()
   var
-    headernameIdx = initTabel[string, int]() 
+    headernameIdx = initTable[string, int]() 
+    idxHeadername = initTable[int, string]()
   var csv: CsvParser
   
   csv.open(fp, sep)
 
   csv.readHeaderRow()
-  echo csv.row
-  
+  for i in 0..<csv.headers.len():
+    headernameIdx[csv.headers[i]] = i
+    idxHeadername[i] = csv.headers[i]
+  if idCol >= idxHeadername.len():
+    raise newException(IndexDefect, "ID col out of range")
+  var rowcount = 0
+  while csv.readRow():
+    let id = csv.row[idCol]
+    var
+      parent = ""
+      name = ""
+      childs: seq[string] = @[]
+    if nameCol >= 0:
+      name = csv.row[nameCol]
+    if (parentCol >= 0) and (parentCol < csv.row.len()) :
+      parent = csv.row[parentCol]
+    if childCol >= 0:
+      childs.add(csv.row[childCol])
+    var e = newElement(id, name, parent, childs)
+    for i in 0..<csv.row.len():
+      if i >= idxHeadername.len():
+        raise newException(
+          IndexDefect,
+          fmt("row {rowcount} with column {i}: index out of range: headerIndex-entries: {idxheadername.len()}"))
+      e.parent = parent
+      e.addKeyVal(idxHeadername[i], csv.row[i])
+      
+    result.addElement(e, false)
+    rowcount.inc()
   csv.close()
