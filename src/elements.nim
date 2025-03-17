@@ -1,4 +1,5 @@
-import std/[tables,strformat,strutils,json,parsecsv]
+import std/[tables,strformat,strutils,json,parsecsv,sequtils]
+import xl
 
 const
   pathseparator = "/"
@@ -7,6 +8,9 @@ type
   NonUniqueKeyException* = object of KeyError
   ParentNotFoundException* = object of KeyError
   ParentAlreadyExistsException* = object of RangeDefect
+  ExcelReadError* = object of IOError
+  KeyNotInElementKeyVals* = object of KeyError
+  ElementIdNotInElementBevy* = object of KeyError
 
 type
   Element* = ref object
@@ -16,7 +20,7 @@ type
     level*: int
     parent*: string # Element-Id
     childs*: seq[string] # Element-Ids
-    keyVals*: Table[string, seq[string]] # key: key; val: value or values
+    keyVals*: OrderedTable[string, seq[string]] # key: key; val: value or values
 
   ElementBevy* = ref object
     elementindex*: seq[string] # element-id
@@ -25,7 +29,7 @@ type
 
 func newElement*(id, name, parent: string = "",
                 childs: seq[string] = @[],
-                keyvals: Table[string, seq[string]] = initTable[string, seq[string]]()): Element =
+                keyvals: OrderedTable[string, seq[string]] = initOrderedTable[string, seq[string]]()): Element =
   return Element(id: id, name: name, parent: parent, childs: childs, keyVals: keyvals)
 
 func newElementBevy*(makeroot: bool = false): ElementBevy =
@@ -85,6 +89,32 @@ proc addKeyVal*(elem: Element, key, val: string) =
   else:
     elem.keyVals[key] = @[val]
 
+proc delElement*(eb: var ElementBevy, elementId: string) =
+  if not eb.elements.hasKey(elementId):
+    raise newException(ElementIdNotInElementBevy, fmt("element-id '{elementId}' not in element-bevy"))
+  let
+    elemIdx = eb.elementindex.find(elementId)
+    parent = eb.elements[elementId].parent
+    childs = eb.elements[elementId].childs
+  for child in childs:
+    if not eb.elements.hasKey(child):
+      raise newException(ElementIdNotInElementBevy, fmt("child-id '{child}' not in element-bevy"))
+    # TODO: chek if there is a parent and log it
+    eb.elements[child].parent = ""
+  if parent != "":
+    if not eb.elements.hasKey(parent):
+      raise newException(ElementIdNotInElementBevy, fmt("parent-id '{parent}' not in element-bevy"))
+    var newchilds: seq[string] = @[]
+    for child in eb.elements[parent].childs:
+      if child == parent:
+        continue
+      else:
+        newchilds.add(child)
+    eb.elements[parent].childs = newchilds
+  if elemIdx >= 0:
+    eb.elementindex.delete(elemIdx..elemIdx)
+  eb.elements.del(elementId)
+      
 proc getElement*(eb: ElementBevy, idx: int): Element =
   return eb.elements[eb.elementindex[idx]]
 
@@ -166,7 +196,16 @@ proc validateValues*(eb: ElementBevy, valKey, pattern: string,
     result.add(
       validateValues(elem, valKey, pattern, validateProc)
       )
-    
+
+proc editKeyVals*(e: var Element, key: string, pattern: string, 
+                  editvalproc: proc(val, pattern: string): string) =
+  if not e.keyVals.hasKey(key):
+    raise newException(KeyNotInElementKeyVals, fmt("key {key} not a member element.keyVals"))
+  var newvals: seq[string] = @[]
+  for keyval in e.keyVals[key]:
+    newvals.add(editvalproc(keyval, pattern))
+  e.keyVals[key] = newvals
+      
 proc importCsv*(fp: string, sep: char = ',',
                 idCol: int = 0, nameCol: int = -1,
                 parentCol, childCol: int = -1,
@@ -176,7 +215,6 @@ proc importCsv*(fp: string, sep: char = ',',
     headernameIdx = initTable[string, int]() 
     idxHeadername = initTable[int, string]()
   var csv: CsvParser
-  
   csv.open(fp, sep)
 
   csv.readHeaderRow()
@@ -186,7 +224,6 @@ proc importCsv*(fp: string, sep: char = ',',
   if idCol >= idxHeadername.len():
     raise newException(IndexDefect, "ID col out of range")
   var rowcount = 0
-  echo result.elements.len()
   while csv.readRow():
     let id = csv.row[idCol]
     var
@@ -205,9 +242,186 @@ proc importCsv*(fp: string, sep: char = ',',
         raise newException(
           IndexDefect,
           fmt("row {rowcount} with column {i}: index out of range: headerIndex-entries: {idxheadername.len()}"))
-      e.parent = parent
+      e.parent = parent # TEST why this? I've defined parent above in line 198 bzw 201
       e.addKeyVal(idxHeadername[i], csv.row[i])
       
     result.addElement(e, false)
     rowcount.inc()
   csv.close()
+
+proc importXlsx*(fp: string, sheetname: string, headeridx: int,
+                idCol: int = 0, nameCol: int = -1,
+                parentCol, childCol: int = -1,
+                createOrigin: bool = false): ElementBevy =
+  result = newElementBevy(createOrigin)
+  var
+    headernameIdx = initTable[string, int]() 
+    idxHeadername = initTable[int, string]()
+ 
+  try:
+    let
+      wb = xl.load(fp)
+    var xlsheet: XlSheet
+    if sheetname == "":
+      xlsheet = wb.active()
+    else:
+      xlsheet  = wb.sheet(sheetname)
+    for rowidx in 0..<(rowCount(xlsheet.range)):
+      if rowidx < headeridx:
+        continue
+      if rowidx == headeridx:
+        for colidx in 0..<(colCount(row(xlsheet.range,rowidx))):
+          let val = xlsheet.row(rowidx).cell(colidx).value()
+          if val == "":
+            continue
+          headernameIdx[val] = colidx
+          idxHeadername[colidx] = val
+        if idCol >= idxHeadername.len():
+          raise newException(IndexDefect, "id-column-index out of range")
+        if nameCol >= idxHeadername.len():
+          raise newException(IndexDefect, "name-column-idx out of range")
+        if parentCol >= idxHeadername.len():
+          raise newException(IndexDefect, "parent-column-index of range")
+        if childCol >= idxHeadername.len():
+          raise newException(IndexDefect, "child-column-index out of range")
+        continue
+      let id = xlsheet.row(rowidx).cell(idCol).value()
+      var
+        parent = ""
+        name = ""
+        childs: seq[string] = @[]
+      if nameCol >= 0:
+        name = xlsheet.row(rowidx).cell(nameCol).value()
+      if (parentCol >= 0):
+        parent = xlsheet.row(rowidx).cell(parentCol).value()
+      if childCol >= 0:
+        childs.add(xlsheet.row(rowidx).cell(childCol).value())
+      var e = newElement(id, name, parent, childs)
+      for colidx in 0..<(colCount(row(xlsheet.range,rowidx))):
+        e.addKeyVal(idxHeadername[colidx], xlsheet.row(rowidx).cell(colidx).value())
+      result.addElement(e, false)
+  except:
+    raise newException(ExcelReadError, getCurrentExceptionMsg())
+
+proc makeSpreadsheet*(eb: ElementBevy): seq[seq[string]] =
+  result = @[]
+  var
+    colnameIdx = initOrderedTable[string, int]()
+    colidx = 0
+    headerrow = initOrderedTable[string, bool]()
+  for e in eb.elements.values():
+    for key in e.keyVals.keys():
+      if headerrow.hasKey(key):
+        continue
+      headerrow[key] = true
+      colnameIdx[key] = colidx
+      colidx.inc()
+
+  var hr: seq[string] = @[]
+  for k in headerrow.keys():
+    hr.add(k)
+  result.add(hr)
+  for e in eb.elements.values():
+    var row: seq[string] = @[]
+    for i in 0..<headerrow.len:
+      row.add("")
+    for key, vals in e.keyVals.pairs():
+      if colnameIdx.hasKey(key):
+        row[colnameIdx[key]] = vals.join("\n")
+      else:
+        echo(fmt("wooohaaaaaa... this shoouldn't happen: found element key '{key}' which is not in colnameIdx"))
+    result.add(row)
+    
+proc makeSpreadsheet*(eb: ElementBevy, am: OrderedTable[string, tuple[attrname: string, useEbKey: bool]]): seq[seq[string]] =
+  result = @[]
+  
+  # var am = initOrderedTable[string, tuple[attrname: string, useEbKey: bool]]()
+  # am["EBID"] = ("ID", false)
+  # am["EBNAME"] = ("Object Text", false)
+  # am["Record Data ID"] = ("Record Data ID", false)
+  # am["Link URL"] = ("Link URL", false)
+  # am["MIN Wert"] = ("Pod", true)
+  # am["MAX Wert"] = ("Pod", true)
+
+  var
+    colnameIdx = initOrderedTable[string, int]()
+    colidx = 0
+    headerrow: seq[string] = @[]
+  for attrnameTup in am.values():
+    if not colnameIdx.hasKey(attrnameTup.attrname):
+      headerrow.add(attrnameTup.attrname)
+      colnameIdx[attrnameTup.attrname] = colidx
+      colidx.inc()
+  result.add(headerrow)
+  
+  for e in eb.elements.values():
+    var row: seq[string] = @[]
+    for k in headerrow:
+      row.add("")
+    if am.hasKey("EBID"):
+      let attrname = am["EBID"].attrname
+      row[colnameIdx[attrname]] = e.id
+    if am.hasKey("EBNAME"):
+      let attrname = am["EBNAME"].attrname
+      row[colnameIdx[attrname]] = e.name
+    if am.hasKey("EBPATH"):
+      let attrname = am["EBPATH"].attrname
+      row[colnameIdx[attrname]] = e.path
+    if am.hasKey("EBLEVEL"):
+      let attrname = am["EBLEVEL"].attrname
+      row[colnameIdx[attrname]] = $e.level
+    if am.hasKey("EBPARENT"):
+      let attrname = am["EBPARENT"].attrname
+      row[colnameIdx[attrname]] = e.parent
+    if am.hasKey("EBCHILDS"):
+      let attrname = am["EBCHILDS"].attrname
+      row[colnameIdx[attrname]] = e.childs.join("\n")
+    for key, vals in e.keyVals.pairs():
+      if am.hasKey(key):
+        let attrname = am[key].attrname
+        var val = ""
+        let tmpval = join(vals, "\"/\"")
+        if am[key].useEbKey:
+          val = fmt("\"{key}:\" \"{tmpval}\"")
+        else:
+          val = tmpval
+        if row[colnameIdx[attrname]] == "":
+          row[colnameIdx[attrname]] = val
+        else:
+          row[colnameIdx[attrname]] = fmt("{row[colnameIdx[attrname]]},\n{val}")
+    result.add(row)
+
+proc readKeyMap*(fp: string): OrderedTable[string, tuple[attrname: string, useEbKey: bool]] =
+  result = initOrderedTable[string, tuple[attrname: string, useEbKey: bool]]()
+  let sep = ';'
+  var csv: CsvParser
+  csv.open(fp, sep)
+  while csv.readRow():
+    if result.hasKey(csv.row[0]):
+      raise newException(NonUniqueKeyException, fmt("key '{csv.row[0]}' is not unique in {fp}"))
+    else:
+      if csv.row.len() > 2:
+        if csv.row[2] == "":
+          result[csv.row[0]] = (csv.row[1], false)
+        else:
+          result[csv.row[0]] = (csv.row[1], parseBool(csv.row[2]))
+      else:
+        result[csv.row[0]] = (csv.row[1], false)
+    
+when isMainModule:
+  let xlsxfile = "anpassungen.xlsx"
+  var eb = importXlsx(xlsxfile, "", 0, 0, 2, -1, -1, true)
+  echo "Elements: " & $eb.elements.len()
+  delElement(eb, "Dia_Anp_12494")
+  echo "Elements: " & $eb.elements.len()
+  let rec = eb.makeSpreadsheet()
+  echo rec.len()
+  echo rec[2]
+  echo rec[3]
+  echo rec[4]
+
+  # let mapfile = "map-anpassungen.csv"
+  # let mymap = readKeyMap(mapfile)
+  # for k, vals in mymap.pairs():
+  #   echo k
+  #   echo "\t" & $vals
