@@ -1,5 +1,5 @@
 import std/[tables,strformat,strutils,json,parsecsv,sequtils]
-import xl
+# import xl
 
 const
   pathseparator = "/"
@@ -19,6 +19,7 @@ type
     path*: string
     level*: int
     parent*: string # Element-Id
+      ## the parents-element elemen-id
     childs*: seq[string] # Element-Ids
     keyVals*: OrderedTable[string, seq[string]] # key: key; val: value or values
 
@@ -249,59 +250,59 @@ proc importCsv*(fp: string, sep: char = ',',
     rowcount.inc()
   csv.close()
 
-proc importXlsx*(fp: string, sheetname: string, headeridx: int,
-                idCol: int = 0, nameCol: int = -1,
-                parentCol, childCol: int = -1,
-                createOrigin: bool = false): ElementBevy =
-  result = newElementBevy(createOrigin)
-  var
-    headernameIdx = initTable[string, int]() 
-    idxHeadername = initTable[int, string]()
+# proc importXlsx*(fp: string, sheetname: string, headeridx: int,
+#                 idCol: int = 0, nameCol: int = -1,
+#                 parentCol, childCol: int = -1,
+#                 createOrigin: bool = false): ElementBevy =
+#   result = newElementBevy(createOrigin)
+#   var
+#     headernameIdx = initTable[string, int]() 
+#     idxHeadername = initTable[int, string]()
  
-  try:
-    let
-      wb = xl.load(fp)
-    var xlsheet: XlSheet
-    if sheetname == "":
-      xlsheet = wb.active()
-    else:
-      xlsheet  = wb.sheet(sheetname)
-    for rowidx in 0..<(rowCount(xlsheet.range)):
-      if rowidx < headeridx:
-        continue
-      if rowidx == headeridx:
-        for colidx in 0..<(colCount(row(xlsheet.range,rowidx))):
-          let val = xlsheet.row(rowidx).cell(colidx).value()
-          if val == "":
-            continue
-          headernameIdx[val] = colidx
-          idxHeadername[colidx] = val
-        if idCol >= idxHeadername.len():
-          raise newException(IndexDefect, "id-column-index out of range")
-        if nameCol >= idxHeadername.len():
-          raise newException(IndexDefect, "name-column-idx out of range")
-        if parentCol >= idxHeadername.len():
-          raise newException(IndexDefect, "parent-column-index of range")
-        if childCol >= idxHeadername.len():
-          raise newException(IndexDefect, "child-column-index out of range")
-        continue
-      let id = xlsheet.row(rowidx).cell(idCol).value()
-      var
-        parent = ""
-        name = ""
-        childs: seq[string] = @[]
-      if nameCol >= 0:
-        name = xlsheet.row(rowidx).cell(nameCol).value()
-      if (parentCol >= 0):
-        parent = xlsheet.row(rowidx).cell(parentCol).value()
-      if childCol >= 0:
-        childs.add(xlsheet.row(rowidx).cell(childCol).value())
-      var e = newElement(id, name, parent, childs)
-      for colidx in 0..<(colCount(row(xlsheet.range,rowidx))):
-        e.addKeyVal(idxHeadername[colidx], xlsheet.row(rowidx).cell(colidx).value())
-      result.addElement(e, false)
-  except:
-    raise newException(ExcelReadError, getCurrentExceptionMsg())
+#   try:
+#     let
+#       wb = xl.load(fp)
+#     var xlsheet: XlSheet
+#     if sheetname == "":
+#       xlsheet = wb.active()
+#     else:
+#       xlsheet  = wb.sheet(sheetname)
+#     for rowidx in 0..<(rowCount(xlsheet.range)):
+#       if rowidx < headeridx:
+#         continue
+#       if rowidx == headeridx:
+#         for colidx in 0..<(colCount(row(xlsheet.range,rowidx))):
+#           let val = xlsheet.row(rowidx).cell(colidx).value()
+#           if val == "":
+#             continue
+#           headernameIdx[val] = colidx
+#           idxHeadername[colidx] = val
+#         if idCol >= idxHeadername.len():
+#           raise newException(IndexDefect, "id-column-index out of range")
+#         if nameCol >= idxHeadername.len():
+#           raise newException(IndexDefect, "name-column-idx out of range")
+#         if parentCol >= idxHeadername.len():
+#           raise newException(IndexDefect, "parent-column-index of range")
+#         if childCol >= idxHeadername.len():
+#           raise newException(IndexDefect, "child-column-index out of range")
+#         continue
+#       let id = xlsheet.row(rowidx).cell(idCol).value()
+#       var
+#         parent = ""
+#         name = ""
+#         childs: seq[string] = @[]
+#       if nameCol >= 0:
+#         name = xlsheet.row(rowidx).cell(nameCol).value()
+#       if (parentCol >= 0):
+#         parent = xlsheet.row(rowidx).cell(parentCol).value()
+#       if childCol >= 0:
+#         childs.add(xlsheet.row(rowidx).cell(childCol).value())
+#       var e = newElement(id, name, parent, childs)
+#       for colidx in 0..<(colCount(row(xlsheet.range,rowidx))):
+#         e.addKeyVal(idxHeadername[colidx], xlsheet.row(rowidx).cell(colidx).value())
+#       result.addElement(e, false)
+#   except:
+#     raise newException(ExcelReadError, getCurrentExceptionMsg())
 
 proc makeSpreadsheet*(eb: ElementBevy): seq[seq[string]] =
   result = @[]
@@ -409,16 +410,17 @@ proc readKeyMap*(fp: string): OrderedTable[string, tuple[attrname: string, useEb
         result[csv.row[0]] = (csv.row[1], false)
     
 when isMainModule:
-  let xlsxfile = "anpassungen.xlsx"
-  var eb = importXlsx(xlsxfile, "", 0, 0, 2, -1, -1, true)
-  echo "Elements: " & $eb.elements.len()
-  delElement(eb, "Dia_Anp_12494")
-  echo "Elements: " & $eb.elements.len()
-  let rec = eb.makeSpreadsheet()
-  echo rec.len()
-  echo rec[2]
-  echo rec[3]
-  echo rec[4]
+  echo "this is elements - hope i can help you..."
+  # let xlsxfile = "anpassungen.xlsx"
+  # var eb = importXlsx(xlsxfile, "", 0, 0, 2, -1, -1, true)
+  # echo "Elements: " & $eb.elements.len()
+  # delElement(eb, "Dia_Anp_12494")
+  # echo "Elements: " & $eb.elements.len()
+  # let rec = eb.makeSpreadsheet()
+  # echo rec.len()
+  # echo rec[2]
+  # echo rec[3]
+  # echo rec[4]
 
   # let mapfile = "map-anpassungen.csv"
   # let mymap = readKeyMap(mapfile)

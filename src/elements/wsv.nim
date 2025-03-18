@@ -61,7 +61,7 @@ type
     encoding*: WsvEncoding
 
   WsvRow* = ref object
-    ## like `WsvLine <#WsvLine>`_ but hold the data in values in 'real-string' way
+    ## like `WsvLine <#WsvLine>`_ but hold the values as *real* strings with wsv-rules
     values*: seq[string]
     whitespaces*: seq[int32]
     comment*: string
@@ -77,7 +77,7 @@ proc parseWsvFile*(fp: string): WsvDocument
 proc parseWsvText*(txt: string): WsvDocument
   ## parses wsv-formated text
 proc parseWsvContent*(txt: string): WsvTable
-  ## parses wsv-formated text and creates `WsvTable <#WsvTable`_ of it
+  ## parses wsv-formated text and creates `WsvTable <#WsvTable>`_ of it
 proc parseWsvLine*(line: string): WsvLine
   ## parses a line which consist of WsvString's
   ##
@@ -305,7 +305,23 @@ proc toString*(wsvline: WsvLine, separator: string = "\t"): string =
     return "--invalid-whitespace-char--"
 
 proc toString*(wsvstring: WsvString): string =
-  return ($wsvstring.toString)
+  ## replaces wsv-rules in WsvString an returns value as string
+  discard
+
+proc asString*(wsvstring: WsvString): string =
+  ## wsvstring-value with wsv-rules and returns value as string
+  discard
+
+proc toWsvString*(s: string): WsvString =
+  ## uses the wsv-rules on string-value and returns value as WsvString
+  discard
+
+proc asWasvString*(s: string): string =
+  ## uses wsv-rules on string and returns string-value as string
+  discard
+  
+proc toStringDisc*(wsvstring: WsvString): string =
+  return $wsvstring
   # if result == "":
   #     return "NIL"
   # if result == wsvDblQuote:

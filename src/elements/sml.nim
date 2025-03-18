@@ -1,4 +1,4 @@
-import std/[tables,os]
+import std/[tables,os,strutils]
 import ./[wsv]
 
 type
@@ -30,21 +30,20 @@ proc parseSmlFile*(fp: string): SmlDocument =
   
 proc parseSmlString*(content: string): SmlDocument =
   result = SmlDocument()
-  let lines = split(txt, "\n")
+  let lines = split(content, "\n")
   var
     idx = -1
     pendingElement = false
   while idx < len(lines)-1:
     idx.inc()
-    let wsvline = parseLine(line)
+    let wsvline = parseLine(lines[idx])
     if idx == 0:
       if not isElement(wsvline):
         echo("error - malformed SML-Document. First node must be Element")
         system.quit()
-      result.name = wsvline.values[0]
+      result.name = $wsvline.values[0]
       pendingElement = true
       continue
-
     
 proc isElement*(wsvline: WsvLine): bool =
   if len(wsvline.values) == 0:
