@@ -1,7 +1,0 @@
-nimTitle	sml	sml.html	module src/elements/sml		0
-nim	SmlNode	sml.html#SmlNode	type SmlNode		8
-nim	SmlDocument	sml.html#SmlDocument	type SmlDocument		15
-nim	newSmlDocumentation	sml.html#newSmlDocumentation	proc newSmlDocumentation(): SmlDocument		20
-nim	parseSmlFile	sml.html#parseSmlFile,string	proc parseSmlFile(fp: string): SmlDocument		21
-nim	parseSmlString	sml.html#parseSmlString,string	proc parseSmlString(content: string): SmlDocument		22
-nim	isElement	sml.html#isElement,WsvLine	proc isElement(wsvline: WsvLine): bool		23

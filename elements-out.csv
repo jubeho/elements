@@ -1,0 +1,5 @@
+id;vorname;nachname;alter;wohnort;parent
+1;Jürgen;Hohenester;50;Achim;
+2;Mandy;Hohenester;45;Achim;
+3;Rafael Bernd Johann;Hohenester;7;;2
+4;Johanna Sophie;;3;Achim;2

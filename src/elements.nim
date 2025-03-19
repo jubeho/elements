@@ -3,6 +3,7 @@ import std/[tables,strformat,strutils,json,parsecsv,sequtils]
 
 const
   pathseparator = "/"
+  valsJoinString = "%%%"
 
 type
   NonUniqueKeyException* = object of KeyError
@@ -115,7 +116,22 @@ proc delElement*(eb: var ElementBevy, elementId: string) =
   if elemIdx >= 0:
     eb.elementindex.delete(elemIdx..elemIdx)
   eb.elements.del(elementId)
-      
+
+proc getUnionKeys*(eb: ElementBevy): (OrderedTable[string, int], seq[string]) =
+  ## lists all keys from elements.keyVals into a table and a sequence
+  ## table holds keyname and occurence, sequence only the keynames
+  var
+    keyOccurence = initOrderedTable[string, int]()
+    keys: seq[string] = @[]
+  for e in eb.elements.values():
+    for key in e.keyVals.keys():
+      if keyOccurence.hasKey(key):
+        keyOccurence[key] = keyOccurence[key] + 1
+      else:
+        keyOccurence[key] = 1
+        keys.add(key)
+  return (keyOccurence, keys)
+
 proc getElement*(eb: ElementBevy, idx: int): Element =
   return eb.elements[eb.elementindex[idx]]
 
@@ -206,7 +222,7 @@ proc editKeyVals*(e: var Element, key: string, pattern: string,
   for keyval in e.keyVals[key]:
     newvals.add(editvalproc(keyval, pattern))
   e.keyVals[key] = newvals
-      
+  
 proc importCsv*(fp: string, sep: char = ',',
                 idCol: int = 0, nameCol: int = -1,
                 parentCol, childCol: int = -1,
@@ -231,9 +247,9 @@ proc importCsv*(fp: string, sep: char = ',',
       parent = ""
       name = ""
       childs: seq[string] = @[]
-    if nameCol >= 0:
+    if (nameCol >= 0) and (nameCol < csv.row.len()):
       name = csv.row[nameCol]
-    if (parentCol >= 0) and (parentCol < csv.row.len()) :
+    if (parentCol >= 0) and (parentCol < csv.row.len()):
       parent = csv.row[parentCol]
     if childCol >= 0:
       childs.add(csv.row[childCol])
@@ -243,12 +259,65 @@ proc importCsv*(fp: string, sep: char = ',',
         raise newException(
           IndexDefect,
           fmt("row {rowcount} with column {i}: index out of range: headerIndex-entries: {idxheadername.len()}"))
-      e.parent = parent # TEST why this? I've defined parent above in line 198 bzw 201
       e.addKeyVal(idxHeadername[i], csv.row[i])
       
     result.addElement(e, false)
     rowcount.inc()
   csv.close()
+
+proc toCsv*(eb: ElementBevy, sep: char = ',', fp: string) =
+  let (_, unionkeys) = getUnionKeys(eb)
+  var txt = join(unionkeys, $sep)
+  txt.add("\n")
+  for e in eb.elements.values():
+    var csvrow: seq[string] = @[]
+    for headerkey in unionkeys:
+      if headerkey in e.keyVals:
+        csvrow.add(e.keyVals[headerkey])
+    txt.add(csvrow.join($sep))
+    txt.add("\n")
+  try:
+    writeFile(fp, txt)
+  except:
+    raise newException(Exception, fmt("error writing csv-file: {getCurrentExceptionMsg()}"))
+  
+proc importSpreadsheet*(rec: seq[seq[string]], headerrow: int = 0,
+                        idCol: int = 0, nameCol: int = -1,
+                        parentCol, childCol: int = -1,
+                        createOrigin: bool = false): ElementBevy =
+  ## imports tabeldata e.g. from an excel file or similar
+  result = newElementBevy(createOrigin)
+  var
+    headernameIdx = initTable[string, int]() 
+    idxHeadername = initTable[int, string]()
+  var i = 0
+  for headername in rec[headerrow]:
+    if headernameIdx.hasKey(headername):
+      raise newException(NonUniqueKeyException, fmt("header-name is not unique: {headername}"))
+    headernameIdx[headername] = i
+    idxHeadername[i] = headername
+    i.inc()
+
+  for i in headerrow+1..<rec.len():
+    let id = rec[i][idCol]
+    var
+      parent = ""
+      name = ""
+      childs: seq[string] = @[]
+    if (nameCol >= 0) and (nameCol < rec[i].len()):
+      name = rec[i][nameCol]
+    if (parentCol >= 0) and (parentCol < rec[i].len()):
+      parent = rec[i][parentCol]
+    if (childCol >= 0) and (childCol < rec[i].len()):
+      childs.add(rec[i][childCol])
+    var e = newElement(id, name, parent, childs)
+    for k in 0..<rec[i].len():
+      if k >= idxHeadername.len():
+        raise newException(
+          IndexDefect,
+          fmt("row {i} in record with column {k}: index out of range: headerIndex-entries: {idxheadername.len()}"))
+      e.addKeyVal(idxHeadername[k], rec[i][k])
+    result.addElement(e, false)
 
 # proc importXlsx*(fp: string, sheetname: string, headeridx: int,
 #                 idCol: int = 0, nameCol: int = -1,
@@ -304,7 +373,7 @@ proc importCsv*(fp: string, sep: char = ',',
 #   except:
 #     raise newException(ExcelReadError, getCurrentExceptionMsg())
 
-proc makeSpreadsheet*(eb: ElementBevy): seq[seq[string]] =
+proc toSpreadsheet*(eb: ElementBevy): seq[seq[string]] =
   result = @[]
   var
     colnameIdx = initOrderedTable[string, int]()
@@ -333,16 +402,8 @@ proc makeSpreadsheet*(eb: ElementBevy): seq[seq[string]] =
         echo(fmt("wooohaaaaaa... this shoouldn't happen: found element key '{key}' which is not in colnameIdx"))
     result.add(row)
     
-proc makeSpreadsheet*(eb: ElementBevy, am: OrderedTable[string, tuple[attrname: string, useEbKey: bool]]): seq[seq[string]] =
+proc toSpreadsheet*(eb: ElementBevy, am: OrderedTable[string, tuple[attrname: string, useEbKey: bool]]): seq[seq[string]] =
   result = @[]
-  
-  # var am = initOrderedTable[string, tuple[attrname: string, useEbKey: bool]]()
-  # am["EBID"] = ("ID", false)
-  # am["EBNAME"] = ("Object Text", false)
-  # am["Record Data ID"] = ("Record Data ID", false)
-  # am["Link URL"] = ("Link URL", false)
-  # am["MIN Wert"] = ("Pod", true)
-  # am["MAX Wert"] = ("Pod", true)
 
   var
     colnameIdx = initOrderedTable[string, int]()
@@ -411,19 +472,12 @@ proc readKeyMap*(fp: string): OrderedTable[string, tuple[attrname: string, useEb
     
 when isMainModule:
   echo "this is elements - hope i can help you..."
-  # let xlsxfile = "anpassungen.xlsx"
-  # var eb = importXlsx(xlsxfile, "", 0, 0, 2, -1, -1, true)
-  # echo "Elements: " & $eb.elements.len()
-  # delElement(eb, "Dia_Anp_12494")
-  # echo "Elements: " & $eb.elements.len()
-  # let rec = eb.makeSpreadsheet()
-  # echo rec.len()
-  # echo rec[2]
-  # echo rec[3]
-  # echo rec[4]
-
-  # let mapfile = "map-anpassungen.csv"
-  # let mymap = readKeyMap(mapfile)
-  # for k, vals in mymap.pairs():
-  #   echo k
-  #   echo "\t" & $vals
+  var myeb = importCsv("test.csv", ';', 0, 1, 5, -1, false)
+  echo myeb.elements.len()
+  var myrec = myeb.toSpreadsheet()
+  echo myrec.len()
+  echo myrec[0]
+  echo myrec[^1]
+  var my2eb = importSpreadsheet(myrec, 0, 0, 1, 5, -1, false)
+  echo my2eb.elements.len()
+  my2eb.toCsv(';', "elements-out.csv")
