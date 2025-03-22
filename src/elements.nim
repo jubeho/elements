@@ -3,7 +3,8 @@ import std/[tables,strformat,strutils,json,parsecsv,sequtils]
 
 const
   pathseparator = "/"
-  valsJoinString = "%%%"
+  valsJoinString = "|>"
+  keyMapTrueVals = @["j", "y", "ja", "Ja", "yes"]
 
 type
   NonUniqueKeyException* = object of KeyError
@@ -91,6 +92,15 @@ proc addKeyVal*(elem: Element, key, val: string) =
   else:
     elem.keyVals[key] = @[val]
 
+proc getVals*(elem: Element, key: string): string =
+  ## returns concatenated vals from Element.keyVals->key if key exists
+  ## otherwise returns ""
+  ## so you have check the key before...
+  if elem.keyVals.hasKey(key):
+    return elem.keyVals[key].join(valsJoinString)
+  else:
+    return ""
+  
 proc delElement*(eb: var ElementBevy, elementId: string) =
   if not eb.elements.hasKey(elementId):
     raise newException(ElementIdNotInElementBevy, fmt("element-id '{elementId}' not in element-bevy"))
@@ -186,7 +196,38 @@ proc getChildElementidents*(eb: ElementBevy, node: Element): seq[tuple[id, name:
 
 proc getChildElementidents*(eb: ElementBevy, elementid: string): seq[tuple[id, name: string]] =
   return getChildElementidents(eb, eb.elements[elementid])
+
+proc getAllVals*(eb: ElementBevy, key: string): (OrderedTable[string, int], seq[string], seq[string]) =
+  ## collects all values from given key.
+  ## returns
+  ## - union-Table with values and occurences in ElementBevy
+  ## - uniqueVals: this values are unique in ElementBevy for the key
+  ## - nonuniqueVals: values, which are more than once in ElementBevy for the key
+  ## e.g.: i get results from all the values in all elements for a key "Streetname"
   
+  var
+    uniqueValFlags = initOrderedTable[string, bool]()
+    valOccurences = initOrderedTable[string, int]()
+    uniqueVals: seq[string] = @[]
+    nonuniqueVals: seq[string] = @[]
+    hasAnElementKey = false
+  for e in eb.elements.mvalues():
+    if e.keyVals.hasKey(key):
+      var val = e.getVals(key)
+      if valOccurences.hasKey(val):
+        valOccurences[val].inc()
+        if uniqueValFlags.hasKey(val):
+          uniqueValFlags.del(val)
+        else:
+          nonuniqueVals.add(val)
+      else:
+        valOccurences[val] = 1
+        uniqueValFlags[val] = true
+
+  for key in uniqueValFlags.keys():
+    uniqueVals.add(key)
+  return (valOccurences, uniqueVals, nonuniqueVals)
+
 proc printTree*(eb: ElementBevy, elem: Element, indent: string, ): string =
   result = fmt("{indent}{elem.name} ({elem.id})\n")
   for child in elem.childs:
@@ -453,31 +494,64 @@ proc toSpreadsheet*(eb: ElementBevy, am: OrderedTable[string, tuple[attrname: st
           row[colnameIdx[attrname]] = fmt("{row[colnameIdx[attrname]]},\n{val}")
     result.add(row)
 
-proc readKeyMap*(fp: string): OrderedTable[string, tuple[attrname: string, useEbKey: bool]] =
-  result = initOrderedTable[string, tuple[attrname: string, useEbKey: bool]]()
-  let sep = ';'
+proc readKeyMap*(fp: string, separator: char):
+               (OrderedTable[string, tuple[attrname: string, useEbKey: bool]],
+                seq[string]) =
+  var
+    mapping = initOrderedTable[string, tuple[attrname: string, useEbKey: bool]]()
+    attrs: seq[string] = @[]
   var csv: CsvParser
-  csv.open(fp, sep)
+  csv.open(fp, separator)
+  csv.readHeaderRow()
+  var rowcount = 0
   while csv.readRow():
-    if result.hasKey(csv.row[0]):
+    if mapping.hasKey(csv.row[0]):
       raise newException(NonUniqueKeyException, fmt("key '{csv.row[0]}' is not unique in {fp}"))
     else:
-      if csv.row.len() > 2:
-        if csv.row[2] == "":
-          result[csv.row[0]] = (csv.row[1], false)
-        else:
-          result[csv.row[0]] = (csv.row[1], parseBool(csv.row[2]))
+      case csv.row.len()
+      of 0:
+        echo(fmt("no csv-data in row {rowcount}"))
+      of 1:
+        attrs.add(csv.row[0])
+      of 2:
+        if csv.row[1] in keyMapTrueVals:
+          mapping[csv.row[0]] = (csv.row[0], false)
+        attrs.add(csv.row[0])
+      of 3:
+        attrs.add(csv.row[0])
+        var targetAtrName = csv.row[2]
+        if targetAtrName == "":
+            targetAtrName = csv.row[0]
+        if csv.row[1] in keyMapTrueVals:
+          mapping[csv.row[0]] = (targetAtrName, false)
+      of 4:
+        attrs.add(csv.row[0])
+        var targetAtrName = csv.row[2]
+        if targetAtrName == "":
+            targetAtrName = csv.row[0]
+        if csv.row[1] in keyMapTrueVals:
+          if csv.row[3] in keyMapTrueVals:
+            mapping[csv.row[0]] = (targetAtrName, true)
+          else:
+            mapping[csv.row[0]] = (targetAtrName, false)
       else:
-        result[csv.row[0]] = (csv.row[1], false)
+        discard
+    rowcount.inc()
+  return (mapping, attrs)
     
 when isMainModule:
-  echo "this is elements - hope i can help you..."
-  var myeb = importCsv("test.csv", ';', 0, 1, 5, -1, false)
-  echo myeb.elements.len()
-  var myrec = myeb.toSpreadsheet()
-  echo myrec.len()
-  echo myrec[0]
-  echo myrec[^1]
-  var my2eb = importSpreadsheet(myrec, 0, 0, 1, 5, -1, false)
-  echo my2eb.elements.len()
-  my2eb.toCsv(';', "elements-out.csv")
+  # echo "this is elements - hope i can help you..."
+  # var myeb = importCsv("test.csv", ';', 0, 1, 5, -1, false)
+  # echo myeb.elements.len()
+  # var myrec = myeb.toSpreadsheet()
+  # echo myrec.len()
+  # echo myrec[0]
+  # echo myrec[^1]
+  # var my2eb = importSpreadsheet(myrec, 0, 0, 1, 5, -1, false)
+  # echo my2eb.elements.len()
+  # my2eb.toCsv(';', "elements-out.csv")
+  let (mykeymap, attrs) = readKeyMap("anpassungen.csv", ';')
+  echo mykeymap.len()
+  for k, tup in mykeymap.pairs():
+    echo k, " ", $tup
+  echo attrs

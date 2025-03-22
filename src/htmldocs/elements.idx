@@ -1,0 +1,46 @@
+nimTitle	elements	elements.html	module src/elements		0
+nim	NonUniqueKeyException	elements.html#NonUniqueKeyException	object NonUniqueKeyException		10
+nim	ParentNotFoundException	elements.html#ParentNotFoundException	object ParentNotFoundException		11
+nim	ParentAlreadyExistsException	elements.html#ParentAlreadyExistsException	object ParentAlreadyExistsException		12
+nim	ExcelReadError	elements.html#ExcelReadError	object ExcelReadError		13
+nim	KeyNotInElementKeyVals	elements.html#KeyNotInElementKeyVals	object KeyNotInElementKeyVals		14
+nim	ElementIdNotInElementBevy	elements.html#ElementIdNotInElementBevy	object ElementIdNotInElementBevy		15
+nim	Element	elements.html#Element	type Element		18
+nim	ElementBevy	elements.html#ElementBevy	type ElementBevy		28
+nim	newElement	elements.html#newElement,string,string,string,seq[string],OrderedTable[string,seq[string]]	proc newElement(id, name, parent: string = ""; childs: seq[string] = @[]; keyvals: OrderedTable[\n    string, seq[string]] = initOrderedTable[string, seq[string]]()): Element		33
+nim	newElementBevy	elements.html#newElementBevy,bool	proc newElementBevy(makeroot: bool = false): ElementBevy		38
+nim	newElementBevy	elements.html#newElementBevy,Element	proc newElementBevy(elem: Element): ElementBevy		51
+nim	newElementBevy	elements.html#newElementBevy,seq[Element]	proc newElementBevy(elements: seq[Element]): ElementBevy		57
+nim	addElement	elements.html#addElement,ElementBevy,Element,bool	proc addElement(eb: ElementBevy; element: Element; checkParent: bool = true)		68
+nim	addKeyVal	elements.html#addKeyVal,Element,string,string	proc addKeyVal(elem: Element; key, val: string)		89
+nim	getVals	elements.html#getVals,Element,string	proc getVals(elem: Element; key: string): string		95
+nim	delElement	elements.html#delElement,ElementBevy,string	proc delElement(eb: var ElementBevy; elementId: string)		104
+nim	getUnionKeys	elements.html#getUnionKeys,ElementBevy	proc getUnionKeys(eb: ElementBevy): (OrderedTable[string, int], seq[string])		130
+nim	getElement	elements.html#getElement,ElementBevy,int	proc getElement(eb: ElementBevy; idx: int): Element		145
+nim	getElementlevel	elements.html#getElementlevel,ElementBevy,Element	proc getElementlevel(eb: ElementBevy; element: Element): int		148
+nim	getElementlevel	elements.html#getElementlevel,ElementBevy,string	proc getElementlevel(eb: ElementBevy; elementid: string): int		164
+nim	getRootElementidents	elements.html#getRootElementidents,ElementBevy	proc getRootElementidents(eb: ElementBevy): seq[tuple[id, name: string]]		167
+nim	getSamelevelElementidents	elements.html#getSamelevelElementidents,ElementBevy,Element	proc getSamelevelElementidents(eb: ElementBevy; element: Element): seq[\n    tuple[id, name: string]]		173
+nim	getSamelevelElementidents	elements.html#getSamelevelElementidents,ElementBevy,string	proc getSamelevelElementidents(eb: ElementBevy; elementid: string): seq[\n    tuple[id, name: string]]		181
+nim	getElementidents	elements.html#getElementidents,ElementBevy,int	proc getElementidents(eb: ElementBevy; level: int): seq[tuple[id, name: string]]		184
+nim	getChildElementidents	elements.html#getChildElementidents,ElementBevy,Element	proc getChildElementidents(eb: ElementBevy; node: Element): seq[\n    tuple[id, name: string]]		192
+nim	getChildElementidents	elements.html#getChildElementidents,ElementBevy,string	proc getChildElementidents(eb: ElementBevy; elementid: string): seq[\n    tuple[id, name: string]]		197
+nim	getAllVals	elements.html#getAllVals,ElementBevy,string	proc getAllVals(eb: ElementBevy; key: string): (OrderedTable[string, int],\n    seq[string], seq[string])		200
+nim	printTree	elements.html#printTree,ElementBevy,Element,string	proc printTree(eb: ElementBevy; elem: Element; indent: string): string		231
+nim	printTree	elements.html#printTree,ElementBevy,string	proc printTree(eb: ElementBevy; indent: string): string		236
+nim	validateValues	elements.html#validateValues,Element,string,string,proc(string,string)	proc validateValues(elem: Element; valKey, pattern: string;\n               validateProc: proc (value, pattern: string): bool): seq[\n    tuple[id, value: string]]		239
+nim	validateValues	elements.html#validateValues,ElementBevy,string,string,proc(string,string)	proc validateValues(eb: ElementBevy; valKey, pattern: string;\n               validateProc: proc (value, pattern: string): bool): seq[\n    tuple[id, value: string]]		249
+nim	editKeyVals	elements.html#editKeyVals,Element,string,string,proc(string,string)	proc editKeyVals(e: var Element; key: string; pattern: string;\n            editvalproc: proc (val, pattern: string): string)		258
+nim	importCsv	elements.html#importCsv,string,char,int,int,int,int,bool	proc importCsv(fp: string; sep: char = ','; idCol: int = 0; nameCol: int = -1;\n          parentCol, childCol: int = -1; createOrigin: bool = false): ElementBevy		267
+nim	toCsv	elements.html#toCsv,ElementBevy,char,string	proc toCsv(eb: ElementBevy; sep: char = ','; fp: string)		309
+nim	importSpreadsheet	elements.html#importSpreadsheet,seq[seq[string]],int,int,int,int,int,bool	proc importSpreadsheet(rec: seq[seq[string]]; headerrow: int = 0; idCol: int = 0;\n                  nameCol: int = -1; parentCol, childCol: int = -1;\n                  createOrigin: bool = false): ElementBevy		325
+nim	toSpreadsheet	elements.html#toSpreadsheet,ElementBevy	proc toSpreadsheet(eb: ElementBevy): seq[seq[string]]		417
+nim	toSpreadsheet	elements.html#toSpreadsheet,ElementBevy,OrderedTable[string,tuple[string,bool]]	proc toSpreadsheet(eb: ElementBevy;\n              am: OrderedTable[string, tuple[attrname: string, useEbKey: bool]]): seq[\n    seq[string]]		446
+nim	readKeyMap	elements.html#readKeyMap,string,char	proc readKeyMap(fp: string; separator: char): OrderedTable[string,\n    tuple[attrname: string, useEbKey: bool]]		497
+nimgrp	tospreadsheet	elements.html#toSpreadsheet-procs-all	proc		417
+nimgrp	newelementbevy	elements.html#newElementBevy-procs-all	proc		38
+nimgrp	getelementlevel	elements.html#getElementlevel-procs-all	proc		148
+nimgrp	printtree	elements.html#printTree-procs-all	proc		231
+nimgrp	validatevalues	elements.html#validateValues-procs-all	proc		239
+nimgrp	getchildelementidents	elements.html#getChildElementidents-procs-all	proc		192
+nimgrp	getsamelevelelementidents	elements.html#getSamelevelElementidents-procs-all	proc		173
