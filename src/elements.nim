@@ -5,6 +5,7 @@ const
   pathseparator = "/"
   valsJoinString = "|>"
   keyMapTrueVals = @["j", "y", "ja", "Ja", "yes"]
+  targetColumnNamesSeparator = "|"
 
 type
   NonUniqueKeyException* = object of KeyError
@@ -66,6 +67,10 @@ func newElementBevy*(elements: seq[Element]): ElementBevy {.raises: [KeyError]}=
         result.elementindex.add(elements[i].id)
 
 proc addElement*(eb: ElementBevy, element: Element, checkParent: bool = true) =
+  ## adds Element to ElementBevy
+  ##
+  ## if check parent is 'true', the element will not be inserted, if parent does not exist
+  
   if (eb.elements.len() > 0) and checkParent:
     if (element.parent == ""):
       raise newException(ParentAlreadyExistsException, "Error: no parent id given - root-element already exists")
@@ -471,11 +476,128 @@ proc toSpreadsheet*(eb: ElementBevy, am: OrderedTable[string, tuple[attrname: st
       row = row[0..^2]
     result.add(row)
 
-proc readKeyMap*(fp: string, separator: char):
-               (OrderedTable[string, tuple[attrname: string, useEbKey: bool]],
-                seq[string]) =
+proc makeTargetTuples(srcColname: string,
+  targetColnames: seq[string], useKeynameInTarget: seq[string],
+  ): seq[tuple[attrname: string, useEbKey: bool]] =
+  result = @[]
   var
-    mapping = initOrderedTable[string, tuple[attrname: string, useEbKey: bool]]()
+    tcn = ""
+    ukit = false
+  var tcnCounter = 0
+  for targetColname in targetColnames:
+    if targetColname == "":
+      tcn = srcColname
+    else:
+      tcn = targetColname
+    if tcnCounter < useKeynameInTarget.len():
+      if useKeynameInTarget[tcnCounter] in keyMapTrueVals:
+        ukit = true
+      else:
+        ukit = false
+    else:
+      if useKeynameInTarget[^1] in keyMapTrueVals:
+        ukit = true
+      else:
+        ukit = false
+    result.add((tcn, ukit))
+  
+proc makeKeyMap*(rec: seq[seq[string]], haseHeader: bool = false):
+               (OrderedTable[string, seq[tuple[targetname: string, useKeynameInTarget: bool]]],
+                seq[string]) =
+  ## reads keymap from table-data
+  ##
+  ## csv-fields: keyname;use-in-target;target column-name;use-keyname-in-target
+  ##
+  ## 'use in output file' accepts one of the values from `<keyMapTrueVals>`_
+  ## all other values and empty is interpreted as "no"
+  ##
+  ## "outputfile header-name" can contain more than one value. That means, the value of the "keyname"
+  ## will be exported in all columns, defined. The column-names must be seperated by "|"
+  ## e.g.: Name|Group will put the value from the keyname into column "Name" and column "Group"
+  ##
+  ## 'use Keyname in output cell' accepts also the vallues from `<keyMapTrueVals>`_
+  ## all other values and empty is interpreted as "no"
+  ## if 'y' inserts the value in cell like so: "keyname": "value"
+  ## if "outputfile column-name" has multiple entries, this field is used like so:
+  ## - are more than one "output column-name" given and only one value given in here: setting will
+  ## be used for all column-names
+  ## - you can seperate the content by "|" -> so for each "output column-name" the cell-value is treated
+  ## as defined.
+  ## are more column-names as "useKeynameInCell"-Values: last given "useKeynameInCell"-value is used
+  ## for the überzähligen column-names
+  
+  var
+    mapping = initOrderedTable[string, seq[tuple[targetname: string, useKeynameInTarget: bool]]]()
+    attrs: seq[string] = @[]
+  var startRow = 0
+  if hasHeader:
+    startRow = 1
+  var rowcount = 0
+  for i in startRow..<rec.len():
+    let row = rec[i]
+    if mapping.hasKey(row[0]):
+      raise newException(NonUniqueKeyException, fmt("key '{row[0]}' is not unique in {fp}"))
+    else:
+      case row.len()
+      of 0:
+        echo(fmt("no data in row {rowcount}"))
+      of 1:
+        attrs.add(csv.row[0])
+      of 2:
+        attrs.add(csv.row[0])
+        if csv.row[1] in keyMapTrueVals:
+          mapping[csv.row[0]] = (csv.row[0], false)
+      of 3:
+        attrs.add(csv.row[0])
+        var targetAtrNames = csv.row[2].split(targetColumnNamesSeparator)
+        if targetAtrName == "":
+            targetAtrName = csv.row[0]
+        if csv.row[1] in keyMapTrueVals:
+          for targetAtrName in targetAtrNames:
+            
+          mapping[csv.row[0]] = (targetAtrName, false)
+      of 4:
+        attrs.add(csv.row[0])
+        var targetAtrName = csv.row[2]
+        if targetAtrName == "":
+            targetAtrName = csv.row[0]
+        if csv.row[1] in keyMapTrueVals:
+          if csv.row[3] in keyMapTrueVals:
+            mapping[csv.row[0]] = (targetAtrName, true)
+          else:
+            mapping[csv.row[0]] = (targetAtrName, false)
+      else:
+        discard
+    rowcount.inc()
+  return (mapping, attrs)
+
+proc readKeyMap*(fp: string, separator: char):
+               (OrderedTable[string, seq[tuple[attrname: string, useEbKey: bool]]],
+                seq[string]) =
+  ## reads keymap from csv-file
+  ##
+  ## csv-fields: keyname;use-in-target;target column-name;use-keyname-in-target
+  ##
+  ## 'use in output file' accepts one of the values from `<keyMapTrueVals>`_
+  ## all other values and empty is interpreted as "no"
+  ##
+  ## "outputfile header-name" can contain more than one value. That means, the value of the "keyname"
+  ## will be exported in all columns, defined. The column-names must be seperated by "|"
+  ## e.g.: Name|Group will put the value from the keyname into column "Name" and column "Group"
+  ##
+  ## 'use Keyname in output cell' accepts also the vallues from `<keyMapTrueVals>`_
+  ## all other values and empty is interpreted as "no"
+  ## if 'y' inserts the value in cell like so: "keyname": "value"
+  ## if "outputfile column-name" has multiple entries, this field is used like so:
+  ## - are more than one "output column-name" given and only one value given in here: setting will
+  ## be used for all column-names
+  ## - you can seperate the content by "|" -> so for each "output column-name" the cell-value is treated
+  ## as defined.
+  ## are more column-names as "useKeynameInCell"-Values: last given "useKeynameInCell"-value is used
+  ## for the überzähligen column-names
+  
+  var
+    mapping = initOrderedTable[string, seq[tuple[attrname: string, useEbKey: bool]]]()
     attrs: seq[string] = @[]
   var csv: CsvParser
   csv.open(fp, separator)
@@ -491,15 +613,17 @@ proc readKeyMap*(fp: string, separator: char):
       of 1:
         attrs.add(csv.row[0])
       of 2:
+        attrs.add(csv.row[0])
         if csv.row[1] in keyMapTrueVals:
           mapping[csv.row[0]] = (csv.row[0], false)
-        attrs.add(csv.row[0])
       of 3:
         attrs.add(csv.row[0])
-        var targetAtrName = csv.row[2]
+        var targetAtrNames = csv.row[2].split(targetColumnNamesSeparator)
         if targetAtrName == "":
             targetAtrName = csv.row[0]
         if csv.row[1] in keyMapTrueVals:
+          for targetAtrName in targetAtrNames:
+            
           mapping[csv.row[0]] = (targetAtrName, false)
       of 4:
         attrs.add(csv.row[0])
