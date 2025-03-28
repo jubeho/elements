@@ -127,6 +127,22 @@ proc delElement*(eb: var ElementBevy, elementId: string) =
     eb.elementindex.delete(elemIdx..elemIdx)
   eb.elements.del(elementId)
 
+proc delElementByKeyVal*(eb: var ElementBevy, key: string, val: string): (seq[string], int) =
+  ## deletes Element if key-val has given string (val)
+  var
+    deletedElementCount = 0
+    deletedElementIds: seq[string] = @[]
+  for elemid, e in eb.elements.pairs():
+    if not e.keyVals.hasKey(key):
+      continue
+    if e.keyVals[key][0] == val:
+      # eb.delElement(elemid)
+      deletedElementCount.inc()
+      deletedElementIds.add(elemid)
+  for elemid in deletedElementIds:
+    eb.delElement(elemid)
+  return (deletedElementIds, deletedElementCount)
+  
 proc getUnionKeys*(eb: ElementBevy): (OrderedTable[string, int], seq[string]) =
   ## lists all keys from elements.keyVals into a table and a sequence
   ## table holds keyname and occurence, sequence only the keynames
@@ -263,6 +279,17 @@ proc editKeyVals*(e: var Element, key: string, pattern: string,
   for keyval in e.keyVals[key]:
     newvals.add(editvalproc(keyval, pattern))
   e.keyVals[key] = newvals
+
+proc editKeyVals*(e: var Element, key, srchstring, replstring: string, 
+                  editvalproc: proc(val, srchstr, replstr: string): string) =
+  ## replaces search-string (srchstring) with replacs-string (replstring)
+  ## by using given func
+  if not e.keyVals.hasKey(key):
+    raise newException(KeyNotInElementKeyVals, fmt("key {key} not a member element.keyVals"))
+  var newvals: seq[string] = @[]
+  for keyval in e.keyVals[key]:
+    newvals.add(editvalproc(keyval, srchstring, replstring))
+  e.keyVals[key] = newvals
   
 proc importCsv*(fp: string, sep: char = ',',
                 idCol: int = 0, nameCol: int = -1,
@@ -360,60 +387,6 @@ proc importSpreadsheet*(rec: seq[seq[string]], headerrow: int = 0,
       e.addKeyVal(idxHeadername[k], rec[i][k])
     result.addElement(e, false)
 
-# proc importXlsx*(fp: string, sheetname: string, headeridx: int,
-#                 idCol: int = 0, nameCol: int = -1,
-#                 parentCol, childCol: int = -1,
-#                 createOrigin: bool = false): ElementBevy =
-#   result = newElementBevy(createOrigin)
-#   var
-#     headernameIdx = initTable[string, int]() 
-#     idxHeadername = initTable[int, string]()
- 
-#   try:
-#     let
-#       wb = xl.load(fp)
-#     var xlsheet: XlSheet
-#     if sheetname == "":
-#       xlsheet = wb.active()
-#     else:
-#       xlsheet  = wb.sheet(sheetname)
-#     for rowidx in 0..<(rowCount(xlsheet.range)):
-#       if rowidx < headeridx:
-#         continue
-#       if rowidx == headeridx:
-#         for colidx in 0..<(colCount(row(xlsheet.range,rowidx))):
-#           let val = xlsheet.row(rowidx).cell(colidx).value()
-#           if val == "":
-#             continue
-#           headernameIdx[val] = colidx
-#           idxHeadername[colidx] = val
-#         if idCol >= idxHeadername.len():
-#           raise newException(IndexDefect, "id-column-index out of range")
-#         if nameCol >= idxHeadername.len():
-#           raise newException(IndexDefect, "name-column-idx out of range")
-#         if parentCol >= idxHeadername.len():
-#           raise newException(IndexDefect, "parent-column-index of range")
-#         if childCol >= idxHeadername.len():
-#           raise newException(IndexDefect, "child-column-index out of range")
-#         continue
-#       let id = xlsheet.row(rowidx).cell(idCol).value()
-#       var
-#         parent = ""
-#         name = ""
-#         childs: seq[string] = @[]
-#       if nameCol >= 0:
-#         name = xlsheet.row(rowidx).cell(nameCol).value()
-#       if (parentCol >= 0):
-#         parent = xlsheet.row(rowidx).cell(parentCol).value()
-#       if childCol >= 0:
-#         childs.add(xlsheet.row(rowidx).cell(childCol).value())
-#       var e = newElement(id, name, parent, childs)
-#       for colidx in 0..<(colCount(row(xlsheet.range,rowidx))):
-#         e.addKeyVal(idxHeadername[colidx], xlsheet.row(rowidx).cell(colidx).value())
-#       result.addElement(e, false)
-#   except:
-#     raise newException(ExcelReadError, getCurrentExceptionMsg())
-
 proc toSpreadsheet*(eb: ElementBevy): seq[seq[string]] =
   result = @[]
   var
@@ -491,7 +464,11 @@ proc toSpreadsheet*(eb: ElementBevy, am: OrderedTable[string, tuple[attrname: st
         if row[colnameIdx[attrname]] == "":
           row[colnameIdx[attrname]] = val
         else:
-          row[colnameIdx[attrname]] = fmt("{row[colnameIdx[attrname]]},\n{val}")
+          row[colnameIdx[attrname]] = fmt("{row[colnameIdx[attrname]]},{val}")
+    for attrname in @["Beschreibung"]:
+      row[colnameIdx[attrname]] = fmt("{{{row[colnameIdx[attrname]]}}}")
+    if row[^1] == ",":
+      row = row[0..^2]
     result.add(row)
 
 proc readKeyMap*(fp: string, separator: char):
