@@ -4,7 +4,11 @@ Drei;y
 Vier;y;
 Fünf;y;five
 six;y;sechs;
-sieben;y;five|sechs
-acht;y;five|sechs;
-neun;y;five|sechs;y
-zehn;y;five|sechs;n|y
+sieben;y;sechs
+sieben;y;five
+acht;y;five;
+acht;y;sechs;
+neun;y;five;y
+neun;y;sechs;y
+zehn;y;five;n
+zehn;y;sechs;y

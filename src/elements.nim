@@ -476,101 +476,127 @@ proc toSpreadsheet*(eb: ElementBevy, am: OrderedTable[string, tuple[attrname: st
       row = row[0..^2]
     result.add(row)
 
-proc makeTargetRows*(srcColname: string,
-  targetColnames: seq[string], useKeynameInTarget: seq[string] = @[],
-  ): seq[tuple[srcname: string, targetname: string, useKeynameInTarget: bool]] =
-  echo "Source-Col-name: ", srcColname
-  echo "UseKeynmaeInTarget: ", $useKeynameInTarget
-  result = @[]
-  var
-    tcn = ""
-    ukit = false
-  var tcnCounter = 0
-  for targetColname in targetColnames:
-    if targetColname == "":
-      tcn = srcColname
-    else:
-      tcn = targetColname
-    if tcnCounter < useKeynameInTarget.len():
-      if useKeynameInTarget[tcnCounter] in keyMapTrueVals:
-        ukit = true
-      else:
-        ukit = false
-    elif useKeynameInTarget.len() == 0:
-      ukit = false
-    else:
-      if useKeynameInTarget[^1] in keyMapTrueVals:
-        ukit = true
-      else:
-        ukit = false
-    result.add((srcColname, tcn, ukit))
-    tcnCounter.inc()
+# proc makeTargetRows*(srcColname: string,
+#   targetColnames: seq[string], useKeynameInTarget: seq[string] = @[],
+#   ): seq[tuple[srcname: string, targetname: string, useKeynameInTarget: bool]] =
+#   echo "Source-Col-name: ", srcColname
+#   echo "UseKeynmaeInTarget: ", $useKeynameInTarget
+#   result = @[]
+#   var
+#     tcn = ""
+#     ukit = false
+#   var tcnCounter = 0
+#   for targetColname in targetColnames:
+#     if targetColname == "":
+#       tcn = srcColname
+#     else:
+#       tcn = targetColname
+#     if tcnCounter < useKeynameInTarget.len():
+#       if useKeynameInTarget[tcnCounter] in keyMapTrueVals:
+#         ukit = true
+#       else:
+#         ukit = false
+#     elif useKeynameInTarget.len() == 0:
+#       ukit = false
+#     else:
+#       if useKeynameInTarget[^1] in keyMapTrueVals:
+#         ukit = true
+#       else:
+#         ukit = false
+#     result.add((srcColname, tcn, ukit))
+#     tcnCounter.inc()
 
-proc makeTargetTuples2(srcColname: string,
-  targetColnames: seq[string], useKeynameInTarget: seq[string] = @[],
-  ): seq[tuple[targetname: string, useKeynameInTarget: bool]] =
-  echo "Source-Col-name: ", srcColname
-  echo "UseKeynmaeInTarget: ", $useKeynameInTarget
-  result = @[]
-  var
-    tcn = ""
-    ukit = false
-  var tcnCounter = 0
-  for targetColname in targetColnames:
-    if targetColname == "":
-      tcn = srcColname
-    else:
-      tcn = targetColname
-    if tcnCounter < useKeynameInTarget.len():
-      if useKeynameInTarget[tcnCounter] in keyMapTrueVals:
-        ukit = true
-      else:
-        ukit = false
-    elif useKeynameInTarget.len() == 0:
-      ukit = false
-    else:
-      if useKeynameInTarget[^1] in keyMapTrueVals:
-        ukit = true
-      else:
-        ukit = false
-    result.add((tcn, ukit))
-    tcnCounter.inc()
+# proc makeTargetTuples2(srcColname: string,
+#   targetColnames: seq[string], useKeynameInTarget: seq[string] = @[],
+#   ): seq[tuple[targetname: string, useKeynameInTarget: bool]] =
+#   echo "Source-Col-name: ", srcColname
+#   echo "UseKeynmaeInTarget: ", $useKeynameInTarget
+#   result = @[]
+#   var
+#     tcn = ""
+#     ukit = false
+#   var tcnCounter = 0
+#   for targetColname in targetColnames:
+#     if targetColname == "":
+#       tcn = srcColname
+#     else:
+#       tcn = targetColname
+#     if tcnCounter < useKeynameInTarget.len():
+#       if useKeynameInTarget[tcnCounter] in keyMapTrueVals:
+#         ukit = true
+#       else:
+#         ukit = false
+#     elif useKeynameInTarget.len() == 0:
+#       ukit = false
+#     else:
+#       if useKeynameInTarget[^1] in keyMapTrueVals:
+#         ukit = true
+#       else:
+#         ukit = false
+#     result.add((tcn, ukit))
+#     tcnCounter.inc()
 
-
-proc parseKeymapRow(maping: var seq
-    
 proc parseKeymapRow(
-    mapping: var OrderedTable[string, seq[tuple[targetname: string, useKeynameInTarget: bool]]],
-    srcColnames: var seq[string],
-    row: seq[string]) =
-    if mapping.hasKey(row[0]):
-      raise newException(NonUniqueKeyException, fmt("key '{row[0]}' is not unique in given records"))
-    else:
-      srcColnames.add(row[0])
-      case row.len()
-      of 0:
-        echo(fmt("no data in row..."))
-      of 1:
-        discard
-      of 2:
-        if row[1] in keyMapTrueVals:
-          mapping[row[0]] = @[(row[0], false)]
-      of 3:
-        if row[1] in keyMapTrueVals:
-          var targetColNames = row[2].split(targetColumnNamesSeparator)
-          mapping[row[0]] = makeTargetTuples(row[0], targetColNames)
-      of 4:
-        if row[1] in keyMapTrueVals:
-          var
-            targetColNames = row[2].split(targetColumnNamesSeparator)
-            useKeynameInTargets = row[3].split(targetColumnNamesSeparator)
-          mapping[row[0]] = makeTargetTuples(row[0], targetColNames, useKeynameInTargets)
+  mapping: var seq[tuple[srcname, targetname: string, useKeynameInTarget: bool]],
+  srcColnames: var seq[string], row: seq[string]) =
+  var
+    srcname = row[0]
+    trgtname = ""
+    uknit = false
+  srcColnames.add(row[0])
+  case row.len()
+  of 0:
+    echo(fmt("no data in row..."))
+  of 1:
+    discard
+  of 2:
+    if row[1] in keyMapTrueVals:
+      mapping.add((row[0], row[0], false))
+  of 3:
+    if row[1] in keyMapTrueVals:
+      mapping.add((row[0], row[2], false))
+  of 4:
+    if row[1] in keyMapTrueVals:
+      if row[3] in keyMapTrueVals:
+        mapping.add((row[0], row[2], true))
       else:
-        discard
+        mapping.add((row[0], row[2], false))
+  else:
+    discard
+    
+# proc parseKeymapRow(
+#     mapping: var OrderedTable[string, seq[tuple[targetname: string, useKeynameInTarget: bool]]],
+#     srcColnames: var seq[string],
+#     row: seq[string]) =
+#     if mapping.hasKey(row[0]):
+#       raise newException(NonUniqueKeyException, fmt("key '{row[0]}' is not unique in given records"))
+#     else:
+#       srcColnames.add(row[0])
+#       case row.len()
+#       of 0:
+#         echo(fmt("no data in row..."))
+#       of 1:
+#         discard
+#       of 2:
+#         if row[1] in keyMapTrueVals:
+#           mapping[row[0]] = @[(row[0], false)]
+#       of 3:
+#         if row[1] in keyMapTrueVals:
+#           var targetColNames = row[2].split(targetColumnNamesSeparator)
+#           mapping[row[0]] = makeTargetTuples(row[0], targetColNames)
+#       of 4:
+#         if row[1] in keyMapTrueVals:
+#           var
+#             targetColNames = row[2].split(targetColumnNamesSeparator)
+#             useKeynameInTargets = row[3].split(targetColumnNamesSeparator)
+#           mapping[row[0]] = makeTargetTuples(row[0], targetColNames, useKeynameInTargets)
+#       else:
+#         discard
 
 proc makeKeyMap*(rec: seq[seq[string]], hasHeader: bool = false):
-               (OrderedTable[string, seq[tuple[targetname: string, useKeynameInTarget: bool]]],
-                seq[string]) =
+  (seq[tuple[srcname, targetname: string, useKeynameInTarget: bool]],
+               # (OrderedTable[string, seq[tuple[targetname: string, useKeynameInTarget: bool]]],
+  seq[string]) =
   ## reads keymap from table-data
   ##
   ## csv-fields: keyname;use-in-target;target column-name;use-keyname-in-target
@@ -594,54 +620,46 @@ proc makeKeyMap*(rec: seq[seq[string]], hasHeader: bool = false):
   ## for the überzähligen column-names
   
   var
-    mapping = initOrderedTable[string, seq[tuple[targetname: string, useKeynameInTarget: bool]]]()
+    mapping: seq[tuple[srcname, targetname: string, useKeynameInTarget: bool]] = @[]
     srcColnames: seq[string] = @[]
+    # mapping = initOrderedTable[string, seq[tuple[targetname: string, useKeynameInTarget: bool]]]()
   var startRow = 0
   if hasHeader:
     startRow = 1
-  var rowcount = 0
   for i in startRow..<rec.len():
     let row = rec[i]
     mapping.parseKeymapRow(srcColnames, row)
-    # if mapping.hasKey(row[0]):
-    #   raise newException(NonUniqueKeyException, fmt("key '{row[0]}' is not unique in given records"))
-    # else:
-    #   case row.len()
-    #   of 0:
-    #     echo(fmt("no data in row {rowcount}"))
-    #   of 1:
-    #     attrs.add(row[0])
-    #   of 2:
-    #     attrs.add(row[0])
-    #     if row[1] in keyMapTrueVals:
-    #       mapping[row[0]] = @[(row[0], false)]
-    #   of 3:
-    #     attrs.add(row[0])
-    #     if row[1] in keyMapTrueVals:
-    #       var targetColNames = row[2].split(targetColumnNamesSeparator)
-    #       mapping[row[0]] = makeTargetTuples(row[0], targetColNames)
-    #   of 4:
-    #     attrs.add(row[0])
-    #     if row[1] in keyMapTrueVals:
-    #       var
-    #         targetColNames = row[2].split(targetColumnNamesSeparator)
-    #         useKeynameInTargets = row[3].split(targetColumnNamesSeparator)
-    #       mapping[row[0]] = makeTargetTuples(row[0], targetColNames, useKeynameInTargets)
-    #   else:
-    #     discard
-    rowcount.inc()
   return (mapping, srcColnames)
 
-proc readKeyMap*(fp: string, separator: char):
+proc readKeyMap*(fp: string, separator: char, hasHeader: bool = false):
                seq[seq[string]] =
   var csv: CsvParser
   csv.open(fp, separator)
-  csv.readHeaderRow()
+  if hasHeader:
+    csv.readHeaderRow()
   var rowcount = 0
   result = @[]
   while csv.readRow():
     result.add(csv.row)
     rowcount.inc()
+
+proc parseKeyMap*(fp: string, separator: char, hasHeader: bool = false):
+  (seq[tuple[srcname, targetname: string, useKeynameInTarget: bool]],
+  seq[string]) =
+  var csv: CsvParser
+  csv.open(fp, separator)
+  if hasHeader:
+    csv.readHeaderRow()
+  var
+    mapping: seq[tuple[srcname, targetname: string, useKeynameInTarget: bool]] = @[]
+    srcColnames: seq[string] = @[]
+  var rowcount = 0
+  while csv.readRow():
+    var row: seq[string]
+    row = csv.row
+    mapping.parseKeymapRow(srcColnames, row)
+    rowcount.inc()
+  return (mapping, srcColnames)
     
 when isMainModule:
   # echo "this is elements - hope i can help you..."
@@ -654,11 +672,15 @@ when isMainModule:
   # var my2eb = importSpreadsheet(myrec, 0, 0, 1, 5, -1, false)
   # echo my2eb.elements.len()
   # my2eb.toCsv(';', "elements-out.csv")
-  let rec = readKeyMap("testkeymap.csv", ';')
-  echo "read rows: ", $rec.len()
-  for row in rec:
-    echo row
-  let (km, _) = rec.makeKeyMap(false)
-  for k, val in km.pairs():
-    echo k, ": ", $val
+  # let rec = readKeyMap("testkeymap.csv", ';')
+  # echo "read rows: ", $rec.len()
+  # for row in rec:
+  #   echo row
+  # let (km, _) = rec.makeKeyMap(false)
+  # for k, val in km.pairs():
+  #   echo k, ": ", $val
 
+  let (rec, srclist) = parseKeyMap("testkeymap.csv", ';', false)
+  echo rec.len()
+  for tup in rec:
+    echo tup
