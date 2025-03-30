@@ -476,9 +476,11 @@ proc toSpreadsheet*(eb: ElementBevy, am: OrderedTable[string, tuple[attrname: st
       row = row[0..^2]
     result.add(row)
 
-proc makeTargetTuples(srcColname: string,
-  targetColnames: seq[string], useKeynameInTarget: seq[string],
-  ): seq[tuple[attrname: string, useEbKey: bool]] =
+proc makeTargetRows*(srcColname: string,
+  targetColnames: seq[string], useKeynameInTarget: seq[string] = @[],
+  ): seq[tuple[srcname: string, targetname: string, useKeynameInTarget: bool]] =
+  echo "Source-Col-name: ", srcColname
+  echo "UseKeynmaeInTarget: ", $useKeynameInTarget
   result = @[]
   var
     tcn = ""
@@ -494,14 +496,79 @@ proc makeTargetTuples(srcColname: string,
         ukit = true
       else:
         ukit = false
+    elif useKeynameInTarget.len() == 0:
+      ukit = false
+    else:
+      if useKeynameInTarget[^1] in keyMapTrueVals:
+        ukit = true
+      else:
+        ukit = false
+    result.add((srcColname, tcn, ukit))
+    tcnCounter.inc()
+
+proc makeTargetTuples2(srcColname: string,
+  targetColnames: seq[string], useKeynameInTarget: seq[string] = @[],
+  ): seq[tuple[targetname: string, useKeynameInTarget: bool]] =
+  echo "Source-Col-name: ", srcColname
+  echo "UseKeynmaeInTarget: ", $useKeynameInTarget
+  result = @[]
+  var
+    tcn = ""
+    ukit = false
+  var tcnCounter = 0
+  for targetColname in targetColnames:
+    if targetColname == "":
+      tcn = srcColname
+    else:
+      tcn = targetColname
+    if tcnCounter < useKeynameInTarget.len():
+      if useKeynameInTarget[tcnCounter] in keyMapTrueVals:
+        ukit = true
+      else:
+        ukit = false
+    elif useKeynameInTarget.len() == 0:
+      ukit = false
     else:
       if useKeynameInTarget[^1] in keyMapTrueVals:
         ukit = true
       else:
         ukit = false
     result.add((tcn, ukit))
-  
-proc makeKeyMap*(rec: seq[seq[string]], haseHeader: bool = false):
+    tcnCounter.inc()
+
+
+proc parseKeymapRow(maping: var seq
+    
+proc parseKeymapRow(
+    mapping: var OrderedTable[string, seq[tuple[targetname: string, useKeynameInTarget: bool]]],
+    srcColnames: var seq[string],
+    row: seq[string]) =
+    if mapping.hasKey(row[0]):
+      raise newException(NonUniqueKeyException, fmt("key '{row[0]}' is not unique in given records"))
+    else:
+      srcColnames.add(row[0])
+      case row.len()
+      of 0:
+        echo(fmt("no data in row..."))
+      of 1:
+        discard
+      of 2:
+        if row[1] in keyMapTrueVals:
+          mapping[row[0]] = @[(row[0], false)]
+      of 3:
+        if row[1] in keyMapTrueVals:
+          var targetColNames = row[2].split(targetColumnNamesSeparator)
+          mapping[row[0]] = makeTargetTuples(row[0], targetColNames)
+      of 4:
+        if row[1] in keyMapTrueVals:
+          var
+            targetColNames = row[2].split(targetColumnNamesSeparator)
+            useKeynameInTargets = row[3].split(targetColumnNamesSeparator)
+          mapping[row[0]] = makeTargetTuples(row[0], targetColNames, useKeynameInTargets)
+      else:
+        discard
+
+proc makeKeyMap*(rec: seq[seq[string]], hasHeader: bool = false):
                (OrderedTable[string, seq[tuple[targetname: string, useKeynameInTarget: bool]]],
                 seq[string]) =
   ## reads keymap from table-data
@@ -528,117 +595,53 @@ proc makeKeyMap*(rec: seq[seq[string]], haseHeader: bool = false):
   
   var
     mapping = initOrderedTable[string, seq[tuple[targetname: string, useKeynameInTarget: bool]]]()
-    attrs: seq[string] = @[]
+    srcColnames: seq[string] = @[]
   var startRow = 0
   if hasHeader:
     startRow = 1
   var rowcount = 0
   for i in startRow..<rec.len():
     let row = rec[i]
-    if mapping.hasKey(row[0]):
-      raise newException(NonUniqueKeyException, fmt("key '{row[0]}' is not unique in {fp}"))
-    else:
-      case row.len()
-      of 0:
-        echo(fmt("no data in row {rowcount}"))
-      of 1:
-        attrs.add(csv.row[0])
-      of 2:
-        attrs.add(csv.row[0])
-        if csv.row[1] in keyMapTrueVals:
-          mapping[csv.row[0]] = (csv.row[0], false)
-      of 3:
-        attrs.add(csv.row[0])
-        var targetAtrNames = csv.row[2].split(targetColumnNamesSeparator)
-        if targetAtrName == "":
-            targetAtrName = csv.row[0]
-        if csv.row[1] in keyMapTrueVals:
-          for targetAtrName in targetAtrNames:
-            
-          mapping[csv.row[0]] = (targetAtrName, false)
-      of 4:
-        attrs.add(csv.row[0])
-        var targetAtrName = csv.row[2]
-        if targetAtrName == "":
-            targetAtrName = csv.row[0]
-        if csv.row[1] in keyMapTrueVals:
-          if csv.row[3] in keyMapTrueVals:
-            mapping[csv.row[0]] = (targetAtrName, true)
-          else:
-            mapping[csv.row[0]] = (targetAtrName, false)
-      else:
-        discard
+    mapping.parseKeymapRow(srcColnames, row)
+    # if mapping.hasKey(row[0]):
+    #   raise newException(NonUniqueKeyException, fmt("key '{row[0]}' is not unique in given records"))
+    # else:
+    #   case row.len()
+    #   of 0:
+    #     echo(fmt("no data in row {rowcount}"))
+    #   of 1:
+    #     attrs.add(row[0])
+    #   of 2:
+    #     attrs.add(row[0])
+    #     if row[1] in keyMapTrueVals:
+    #       mapping[row[0]] = @[(row[0], false)]
+    #   of 3:
+    #     attrs.add(row[0])
+    #     if row[1] in keyMapTrueVals:
+    #       var targetColNames = row[2].split(targetColumnNamesSeparator)
+    #       mapping[row[0]] = makeTargetTuples(row[0], targetColNames)
+    #   of 4:
+    #     attrs.add(row[0])
+    #     if row[1] in keyMapTrueVals:
+    #       var
+    #         targetColNames = row[2].split(targetColumnNamesSeparator)
+    #         useKeynameInTargets = row[3].split(targetColumnNamesSeparator)
+    #       mapping[row[0]] = makeTargetTuples(row[0], targetColNames, useKeynameInTargets)
+    #   else:
+    #     discard
     rowcount.inc()
-  return (mapping, attrs)
+  return (mapping, srcColnames)
 
 proc readKeyMap*(fp: string, separator: char):
-               (OrderedTable[string, seq[tuple[attrname: string, useEbKey: bool]]],
-                seq[string]) =
-  ## reads keymap from csv-file
-  ##
-  ## csv-fields: keyname;use-in-target;target column-name;use-keyname-in-target
-  ##
-  ## 'use in output file' accepts one of the values from `<keyMapTrueVals>`_
-  ## all other values and empty is interpreted as "no"
-  ##
-  ## "outputfile header-name" can contain more than one value. That means, the value of the "keyname"
-  ## will be exported in all columns, defined. The column-names must be seperated by "|"
-  ## e.g.: Name|Group will put the value from the keyname into column "Name" and column "Group"
-  ##
-  ## 'use Keyname in output cell' accepts also the vallues from `<keyMapTrueVals>`_
-  ## all other values and empty is interpreted as "no"
-  ## if 'y' inserts the value in cell like so: "keyname": "value"
-  ## if "outputfile column-name" has multiple entries, this field is used like so:
-  ## - are more than one "output column-name" given and only one value given in here: setting will
-  ## be used for all column-names
-  ## - you can seperate the content by "|" -> so for each "output column-name" the cell-value is treated
-  ## as defined.
-  ## are more column-names as "useKeynameInCell"-Values: last given "useKeynameInCell"-value is used
-  ## for the überzähligen column-names
-  
-  var
-    mapping = initOrderedTable[string, seq[tuple[attrname: string, useEbKey: bool]]]()
-    attrs: seq[string] = @[]
+               seq[seq[string]] =
   var csv: CsvParser
   csv.open(fp, separator)
   csv.readHeaderRow()
   var rowcount = 0
+  result = @[]
   while csv.readRow():
-    if mapping.hasKey(csv.row[0]):
-      raise newException(NonUniqueKeyException, fmt("key '{csv.row[0]}' is not unique in {fp}"))
-    else:
-      case csv.row.len()
-      of 0:
-        echo(fmt("no csv-data in row {rowcount}"))
-      of 1:
-        attrs.add(csv.row[0])
-      of 2:
-        attrs.add(csv.row[0])
-        if csv.row[1] in keyMapTrueVals:
-          mapping[csv.row[0]] = (csv.row[0], false)
-      of 3:
-        attrs.add(csv.row[0])
-        var targetAtrNames = csv.row[2].split(targetColumnNamesSeparator)
-        if targetAtrName == "":
-            targetAtrName = csv.row[0]
-        if csv.row[1] in keyMapTrueVals:
-          for targetAtrName in targetAtrNames:
-            
-          mapping[csv.row[0]] = (targetAtrName, false)
-      of 4:
-        attrs.add(csv.row[0])
-        var targetAtrName = csv.row[2]
-        if targetAtrName == "":
-            targetAtrName = csv.row[0]
-        if csv.row[1] in keyMapTrueVals:
-          if csv.row[3] in keyMapTrueVals:
-            mapping[csv.row[0]] = (targetAtrName, true)
-          else:
-            mapping[csv.row[0]] = (targetAtrName, false)
-      else:
-        discard
+    result.add(csv.row)
     rowcount.inc()
-  return (mapping, attrs)
     
 when isMainModule:
   # echo "this is elements - hope i can help you..."
@@ -651,8 +654,11 @@ when isMainModule:
   # var my2eb = importSpreadsheet(myrec, 0, 0, 1, 5, -1, false)
   # echo my2eb.elements.len()
   # my2eb.toCsv(';', "elements-out.csv")
-  let (mykeymap, attrs) = readKeyMap("anpassungen.csv", ';')
-  echo mykeymap.len()
-  for k, tup in mykeymap.pairs():
-    echo k, " ", $tup
-  echo attrs
+  let rec = readKeyMap("testkeymap.csv", ';')
+  echo "read rows: ", $rec.len()
+  for row in rec:
+    echo row
+  let (km, _) = rec.makeKeyMap(false)
+  for k, val in km.pairs():
+    echo k, ": ", $val
+
