@@ -31,6 +31,33 @@ type
     elements*: OrderedTable[string, Element] # key: element-id
     levels*: seq[seq[string]] # dimension1: level, dimension 2: element-ids
 
+proc hasSrcname(am: seq[tuple[srcname, targetname: string, useKeynameInTarget: bool]], sn: string): bool =
+  for tup in am:
+    if tup.srcname == sn:
+      return true
+  return false
+
+proc getTrgtTupel(am: seq[tuple[srcname, targetname: string, useKeynameInTarget: bool]], sn: string): 
+  tuple[srcname, targetname: string, useKeynameInTarget: bool] =
+  for tup in am:
+    if tup.srcname == sn:
+      return tup
+  return ("", "", false)
+
+proc getTrgtName(am: seq[tuple[srcname, targetname: string, useKeynameInTarget: bool]], sn: string): 
+  string =
+  for tup in am:
+    if tup.srcname == sn:
+      return tup.targetname
+  return ""
+
+proc getTrgtUsage(am: seq[tuple[srcname, targetname: string, useKeynameInTarget: bool]], sn: string): 
+  bool =
+  for tup in am:
+    if tup.srcname == sn:
+      return tup.useKeynameInTarget
+  return false
+  
 func newElement*(id, name, parent: string = "",
                 childs: seq[string] = @[],
                 keyvals: OrderedTable[string, seq[string]] = initOrderedTable[string, seq[string]]()): Element =
@@ -420,18 +447,18 @@ proc toSpreadsheet*(eb: ElementBevy): seq[seq[string]] =
       else:
         echo(fmt("wooohaaaaaa... this shoouldn't happen: found element key '{key}' which is not in colnameIdx"))
     result.add(row)
-    
-proc toSpreadsheet*(eb: ElementBevy, am: OrderedTable[string, tuple[attrname: string, useEbKey: bool]]): seq[seq[string]] =
+
+proc toSpreadsheet*(eb: ElementBevy, am: seq[tuple[srcname, targetname: string, useKeynameInTarget: bool]]): seq[seq[string]] =
   result = @[]
 
   var
     colnameIdx = initOrderedTable[string, int]()
     colidx = 0
     headerrow: seq[string] = @[]
-  for attrnameTup in am.values():
-    if not colnameIdx.hasKey(attrnameTup.attrname):
-      headerrow.add(attrnameTup.attrname)
-      colnameIdx[attrnameTup.attrname] = colidx
+  for attrnameTup in am:
+    if not colnameIdx.hasKey(attrnameTup.targetname):
+      headerrow.add(attrnameTup.targetname)
+      colnameIdx[attrnameTup.targetname] = colidx
       colidx.inc()
   result.add(headerrow)
   
@@ -439,30 +466,31 @@ proc toSpreadsheet*(eb: ElementBevy, am: OrderedTable[string, tuple[attrname: st
     var row: seq[string] = @[]
     for k in headerrow:
       row.add("")
-    if am.hasKey("EBID"):
-      let attrname = am["EBID"].attrname
+    if am.hasSrcname("EBID"):
+      let attrname = am.getTrgtName("EBID")
       row[colnameIdx[attrname]] = e.id
-    if am.hasKey("EBNAME"):
-      let attrname = am["EBNAME"].attrname
+    if am.hasSrcname("EBNAME"):
+      let attrname = am.getTrgtName("EBNAME")
       row[colnameIdx[attrname]] = e.name
-    if am.hasKey("EBPATH"):
-      let attrname = am["EBPATH"].attrname
+    if am.hasSrcname("EBPATH"):
+      let attrname = am.getTrgtName("EBPATH")
       row[colnameIdx[attrname]] = e.path
-    if am.hasKey("EBLEVEL"):
-      let attrname = am["EBLEVEL"].attrname
+    if am.hasSrcname("EBLEVEL"):
+      let attrname = am.getTrgtName("EBLEVEL")
       row[colnameIdx[attrname]] = $e.level
-    if am.hasKey("EBPARENT"):
-      let attrname = am["EBPARENT"].attrname
+    if am.hasSrcname("EBPARENT"):
+      let attrname = am.getTrgtName("EBPARENT")
       row[colnameIdx[attrname]] = e.parent
-    if am.hasKey("EBCHILDS"):
-      let attrname = am["EBCHILDS"].attrname
+    if am.hasSrcname("EBCHILDS"):
+      let attrname = am.getTrgtName("EBCHILDS")
       row[colnameIdx[attrname]] = e.childs.join("\n")
+    
     for key, vals in e.keyVals.pairs():
-      if am.hasKey(key):
-        let attrname = am[key].attrname
+      if am.hasSrcname(key):
+        let attrname = am.getTrgtName(key)
         var val = ""
         let tmpval = join(vals, "\"/\"")
-        if am[key].useEbKey:
+        if am.getTrgtUsage(key):
           val = fmt("\"{key}:\" \"{tmpval}\"")
         else:
           val = tmpval
